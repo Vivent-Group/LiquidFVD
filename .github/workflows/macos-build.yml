@@ -23,7 +23,7 @@ jobs:
 
       - name: Version
         run: |
-          V="$(tr -d '[:space:]' < VERSION).${{ github.run_number }}"
+          V="$(tr -d '[:space:]' < version.txt).${{ github.run_number }}"
           echo "LIQUIDFVD_VERSION=$V" >> "$GITHUB_ENV"
           echo "Building LiquidFVD $V"
 

@@ -35,9 +35,9 @@ QT       += core gui widgets printsupport opengl
 TARGET = LiquidFVD
 TEMPLATE = app
 
-# version: <VERSION file>.<build>; the build server passes LIQUIDFVD_VERSION (e.g. 0.80.17),
+# version: <version.txt>.<build>; the build server passes LIQUIDFVD_VERSION (e.g. 0.80.17),
 # local builds become <VERSION>.0-dev
-LIQUIDFVD_BASE_VERSION = $$cat($$PWD/VERSION)
+LIQUIDFVD_BASE_VERSION = $$cat($$PWD/version.txt)
 LIQUIDFVD_VERSION = $$(LIQUIDFVD_VERSION)
 isEmpty(LIQUIDFVD_VERSION): LIQUIDFVD_VERSION = $${LIQUIDFVD_BASE_VERSION}.0-dev
 DEFINES += LIQUIDFVD_VERSION=\\\"$$LIQUIDFVD_VERSION\\\"
