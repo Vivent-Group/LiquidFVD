@@ -67,11 +67,13 @@ void myMessageHandler(QtMsgType type, const QMessageLogContext &, const QString 
 int main(int argc, char *argv[])
 {
     application = new QApplication(argc, argv);
+    QApplication::setApplicationName("LiquidFVD");
+    QApplication::setApplicationVersion(LIQUIDFVD_VERSION);
 #ifndef Q_OS_MAC
     qInstallMessageHandler(myMessageHandler);
 
     FILE* log = fopen("fvd.log", "w");
-    fprintf(log, "FVD++ v0.77 Logfile\n");
+    fprintf(log, "LiquidFVD %s Logfile\n", LIQUIDFVD_VERSION);
     fclose(log);
 #endif
 
@@ -89,7 +91,7 @@ int main(int argc, char *argv[])
     if(argc == 2) {
         QString fileName(argv[1]);
         if(fileName.endsWith(".fvd")) {
-            qDebug("starting FVD++ with project %s", argv[1]);
+            qDebug("starting LiquidFVD with project %s", argv[1]);
             w.loadProject(argv[1]);
         }
     }

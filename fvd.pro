@@ -32,8 +32,16 @@ QT       += core gui widgets printsupport opengl
 #CONFIG += exceptions \
 #          rtti
 
-TARGET = FVD
+TARGET = LiquidFVD
 TEMPLATE = app
+
+# version: <version.txt>.<build>; the build server passes LIQUIDFVD_VERSION (e.g. 0.80.17),
+# local builds become <VERSION>.0-dev
+LIQUIDFVD_BASE_VERSION = $$cat($$PWD/version.txt)
+LIQUIDFVD_VERSION = $$(LIQUIDFVD_VERSION)
+isEmpty(LIQUIDFVD_VERSION): LIQUIDFVD_VERSION = $${LIQUIDFVD_BASE_VERSION}.0-dev
+DEFINES += LIQUIDFVD_VERSION=\\\"$$LIQUIDFVD_VERSION\\\"
+message(LiquidFVD version $$LIQUIDFVD_VERSION)
 
 SOURCES += main.cpp\
     core/undohandler.cpp \
@@ -81,7 +89,8 @@ SOURCES += main.cpp\
     ui/backupmanager.cpp \
     ui/theme.cpp \
     ui/projectmedia.cpp \
-    ui/timelinestrip.cpp
+    ui/timelinestrip.cpp \
+    ui/updater.cpp
 
 HEADERS  += core/undohandler.h \
     core/undoaction.h \
@@ -130,6 +139,7 @@ HEADERS  += core/undohandler.h \
     ui/theme.h \
     ui/projectmedia.h \
     ui/timelinestrip.h \
+    ui/updater.h \
     thirdparty/miniaudio/miniaudio.h
 
 FORMS    += ui/transitionwidget.ui \

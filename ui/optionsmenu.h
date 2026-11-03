@@ -83,6 +83,7 @@ public:
     bool darkMode;
     int autosaveMinutes;    // interval between rotating backups
     int backupCount;        // number of backup slots per project
+    bool checkUpdates;      // look for a new version on start
     void loadExtraSettings();
     void saveExtraSettings();
     void syncExtraOptions();   // refresh the widgets from the members (before showing)
@@ -159,6 +160,7 @@ private:
     QCheckBox* darkModeBox;
     QSpinBox*  autosaveBox;
     QSpinBox*  backupCountBox;
+    QCheckBox* updateBox;
     void setupExtraOptions();
 
     bool phantomChanges;

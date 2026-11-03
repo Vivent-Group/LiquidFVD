@@ -4,23 +4,27 @@ FVD++ (open FVD) by Stephan "Lenny" Alt, extended by Vivent Group.
 
 ## Download (macOS)
 
-Every push to `master` is built automatically on an Apple Silicon Mac: open the **Actions**
-tab, pick the latest green "macOS build" run and download **LiquidFVD-macOS** at the bottom.
-Open the `.dmg` and drag **LiquidFVD** to Applications.
+**Releases** (right-hand side of the repository page, or `/releases/latest`): download
+`LiquidFVD-v…-macOS.dmg`, open it and drag **LiquidFVD** to Applications.
 
-The app is not notarized by Apple, so the first start needs one of these:
+The app is not notarized by Apple, so the very first start needs one of these:
 - right-click LiquidFVD > **Open** > **Open**, or
 - in Terminal: `xattr -dr com.apple.quarantine /Applications/LiquidFVD.app`
 
-The build is native for M1/M2/M3/M4 Macs. A Windows build can be started by hand
-(Actions > "Windows build" > Run workflow). Tagged versions (`v*`) appear under **Releases**.
+After that LiquidFVD **updates itself**: it checks GitHub on start (at most once a day, can be
+switched off in Options) and via Help > Check for Updates, downloads the new version, replaces
+itself and restarts. Your open project is saved to its autosave backup first.
+
+Native for Apple Silicon (M1/M2/M3/M4). Every merge into `master` publishes a new release
+automatically. A Windows build can be started by hand (Actions > "Windows build" > Run workflow).
 
 Existing `.fvd` projects open unchanged, and files saved here still open in the original FVD++.
+LiquidFVD has its own app identity, so it can be installed next to an old FVD++.
 
 ## What's new compared to FVD++ 0.79
 
 - **Autosave** - 4 rotating backups (interval and count in Options) in `<project>/Backups/`;
-  a backup right after opening; unsaved work goes to `Documents/FVD++/Autosave`.
+  a backup right after opening; unsaved work goes to `Documents/LiquidFVD/Autosave`.
 - **Project folders** - New / Save As create `MyCoaster/MyCoaster.fvd`.
 - **Dark mode** - Edit > Dark Mode (Ctrl+Shift+D), graphs included.
 - **Graph handles** - drag the end of any transition: up/down = value, left/right = length,
@@ -30,6 +34,7 @@ Existing `.fvd` projects open unchanged, and files saved here still open in the 
   "Song starts at" offset (or Ctrl+drag the waveform).
 - **Play-along** - Play (Ctrl+P) plays the song and rides the track in POV view in sync,
   without going full screen. Stop: Ctrl+Shift+P.
+- **Updates** - LiquidFVD finds new releases on GitHub and installs them by itself (macOS).
 - **Bookmarks** - Ctrl+M or double-click the strip. Pink = pinned to the song, orange = pinned
   to the ride. Shown in the graph and as balls above the track in 3D.
   Music and bookmarks are saved as `<project>.timeline.json` next to the project.

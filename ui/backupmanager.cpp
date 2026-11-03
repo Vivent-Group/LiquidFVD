@@ -35,7 +35,7 @@ QString backupManager::backupDirFor(const QString& projectFile)
     if(projectFile.isEmpty()) {
         QString docs = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
         if(docs.isEmpty()) docs = QDir::homePath();
-        return QDir(docs).filePath("FVD++/Autosave");
+        return QDir(docs).filePath("LiquidFVD/Autosave");
     }
     return QFileInfo(projectFile).absoluteDir().filePath(backupFolderName());
 }

@@ -20,7 +20,7 @@
                                 <string>application/fvd</string>
                         </array>
                         <key>CFBundleTypeName</key>
-                        <string>FVD++ Project File</string>
+                        <string>LiquidFVD Project File</string>
                         <key>CFBundleTypeOSTypes</key>
                         <array>
                                 <string>????</string>
@@ -41,14 +41,24 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleGetInfoString</key>
-        <string>FVD++</string>
+        <string>LiquidFVD</string>
+	<key>CFBundleName</key>
+	<string>LiquidFVD</string>
+	<key>CFBundleDisplayName</key>
+	<string>LiquidFVD</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.80</string>
+	<key>CFBundleVersion</key>
+	<string>0.80</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
 	<key>CFBundleSignature</key>
 	<string>????</string>
 	<key>CFBundleExecutable</key>
-	<string>FVD</string>
+	<string>LiquidFVD</string>
 	<key>CFBundleIdentifier</key>
-        <string>com.altlenny.FVD</string>
+        <string>com.viventgroup.LiquidFVD</string>
 	<key>NOTE</key>
-        <string>FVD++</string>
+        <string>LiquidFVD - based on FVD++ by Stephan Alt</string>
 </dict>
 </plist>

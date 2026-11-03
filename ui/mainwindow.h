@@ -73,6 +73,7 @@ class trackHandler;
 class objectExporter;
 class QTimer;
 class QAction;
+class updater;
 
 namespace Ui {
 class MainWindow;
@@ -188,6 +189,8 @@ public slots:
 
     void toggleDarkMode(bool on);
     void onPlaybackStateChanged(bool playing);
+    void quitForUpdate();           // backup + quit without the "are you sure" question
+    void showAbout();
 
 private slots:
     void on_actionExport_Model_As_triggered();
@@ -210,6 +213,8 @@ private:
 
     QTimer*  autosaveTimer;
     QAction* darkModeAction;
+    updater* mUpdater;
+    bool     quitWithoutAsking;
 
     bool phantomChanges;
     QString     currentFileName;

@@ -39,7 +39,7 @@ class projectWidget;
  * A snapshot identical to the newest existing backup is not written, so idle
  * periods don't push older, useful states out of the ring.
  *
- * Work that has never been saved goes to <Documents>/FVD++/Autosave/unsaved_backup_N.fvd
+ * Work that has never been saved goes to <Documents>/LiquidFVD/Autosave/unsaved_backup_N.fvd
  */
 class backupManager
 {

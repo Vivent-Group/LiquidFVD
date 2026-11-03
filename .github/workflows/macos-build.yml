@@ -1,9 +1,10 @@
 name: macOS build
 
+# master (after a pull request is merged): build, test, publish release v<VERSION>.<run>
+# pull requests: build and test only
 on:
   push:
     branches: [ master ]
-    tags: [ 'v*' ]
   pull_request:
   workflow_dispatch:
 
@@ -17,6 +18,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history + tags for the release notes
+
+      - name: Version
+        run: |
+          V="$(tr -d '[:space:]' < version.txt).${{ github.run_number }}"
+          echo "LIQUIDFVD_VERSION=$V" >> "$GITHUB_ENV"
+          echo "Building LiquidFVD $V"
 
       - name: Qt 5.15 (Homebrew)
         run: |
@@ -28,26 +37,30 @@ jobs:
 
       - name: Build
         run: |
-          qmake -v
           qmake fvd.pro CONFIG+=release CONFIG+=no3ds "GLM_DIR=$PWD/deps/glm"
           make -j"$(sysctl -n hw.ncpu)"
-          ls -la FVD.app/Contents/MacOS
+          plutil -replace CFBundleShortVersionString -string "$LIQUIDFVD_VERSION" LiquidFVD.app/Contents/Info.plist
+          plutil -replace CFBundleVersion -string "$LIQUIDFVD_VERSION" LiquidFVD.app/Contents/Info.plist
+          ls -la LiquidFVD.app/Contents/MacOS
 
       - name: Package
         run: |
           mkdir -p dist
-          cp -R FVD.app dist/LiquidFVD.app
+          cp -R LiquidFVD.app dist/LiquidFVD.app
           macdeployqt dist/LiquidFVD.app -always-overwrite
           # ad-hoc signature so Apple Silicon runs the bundle after Qt was copied in
           codesign --force --deep --sign - dist/LiquidFVD.app
-          hdiutil create -volname LiquidFVD -srcfolder dist/LiquidFVD.app -ov -format UDZO dist/LiquidFVD.dmg
+          V="v$LIQUIDFVD_VERSION"
+          hdiutil create -volname LiquidFVD -srcfolder dist/LiquidFVD.app -ov -format UDZO "dist/LiquidFVD-$V-macOS.dmg"
+          # the zip is what the built-in updater downloads
+          ditto -c -k --keepParent dist/LiquidFVD.app "dist/LiquidFVD-$V-macOS.zip"
           ls -la dist
 
       # Start the packaged app on the runner's desktop: fails the build if it crashes on launch,
       # and puts a small screenshot into the log (base64) so the look can be checked without a Mac.
       - name: Smoke test (launch + screenshot)
         run: |
-          dist/LiquidFVD.app/Contents/MacOS/FVD > launch.log 2>&1 &
+          dist/LiquidFVD.app/Contents/MacOS/LiquidFVD > launch.log 2>&1 &
           PID=$!
           sleep 12
           if ! kill -0 $PID 2>/dev/null; then
@@ -61,16 +74,63 @@ jobs:
           echo "---- launch.log ----"; head -40 launch.log
           echo "SCREENSHOT-BEGIN"; base64 -i shot-small.png; echo "SCREENSHOT-END"
 
+      # End-to-end test of the self-update: a fake "v99" release on a local server, the installed app
+      # finds it on start, downloads it, swaps itself and starts the new version.
+      - name: Self-update test
+        run: |
+          T="$RUNNER_TEMP/update test"            # path with a space on purpose
+          SRV="$RUNNER_TEMP/srv"
+          mkdir -p "$T" "$SRV" "$RUNNER_TEMP/new"
+          cp -R dist/LiquidFVD.app "$T/LiquidFVD.app"
+          cp -R dist/LiquidFVD.app "$RUNNER_TEMP/new/LiquidFVD.app"
+          touch "$RUNNER_TEMP/new/LiquidFVD.app/Contents/Resources/updated-marker"
+          codesign --force --deep --sign - "$RUNNER_TEMP/new/LiquidFVD.app"
+          ditto -c -k --keepParent "$RUNNER_TEMP/new/LiquidFVD.app" "$SRV/LiquidFVD-v99.0.0-macOS.zip"
+          SIZE=$(stat -f%z "$SRV/LiquidFVD-v99.0.0-macOS.zip")
+          cat > "$SRV/latest.json" <<EOF
+          {"tag_name":"v99.0.0","name":"LiquidFVD 99.0.0","body":"test","html_url":"http://127.0.0.1:8765/",
+           "assets":[{"name":"LiquidFVD-v99.0.0-macOS.zip","browser_download_url":"http://127.0.0.1:8765/LiquidFVD-v99.0.0-macOS.zip","size":$SIZE}]}
+          EOF
+          (cd "$SRV" && python3 -m http.server 8765 --bind 127.0.0.1 > "$RUNNER_TEMP/http.log" 2>&1 &)
+          sleep 1
+          LIQUIDFVD_UPDATE_API=http://127.0.0.1:8765/latest.json LIQUIDFVD_UPDATE_ASSUME_YES=1 \
+            "$T/LiquidFVD.app/Contents/MacOS/LiquidFVD" > "$RUNNER_TEMP/update-run.log" 2>&1 &
+          OLD=$!
+          for i in $(seq 1 90); do
+            [ -f "$T/LiquidFVD.app/Contents/Resources/updated-marker" ] && break
+            sleep 1
+          done
+          sleep 5
+          echo "---- app log ----"; cat "$RUNNER_TEMP/update-run.log"
+          echo "---- installer log ----"; cat "$TMPDIR/LiquidFVD-update/install.log" 2>/dev/null || find /private/var/folders -name install.log -path "*LiquidFVD-update*" -exec cat {} \; 2>/dev/null
+          echo "---- server log ----"; cat "$RUNNER_TEMP/http.log"
+          test -f "$T/LiquidFVD.app/Contents/Resources/updated-marker" || { echo "::error::app was not replaced"; exit 1; }
+          if kill -0 $OLD 2>/dev/null; then echo "::error::old version still running"; exit 1; fi
+          pgrep -fl "update test/LiquidFVD.app/Contents/MacOS/LiquidFVD" || { echo "::error::new version did not start"; exit 1; }
+          echo "Self-update OK: replaced and restarted"
+          pkill -f "update test/LiquidFVD.app" || true
+
       - uses: actions/upload-artifact@v4
         with:
           name: LiquidFVD-macOS
-          path: dist/LiquidFVD.dmg
+          path: dist/LiquidFVD-*-macOS.dmg
 
-      - name: Publish release (tags v*)
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          cp dist/LiquidFVD.dmg "LiquidFVD-${{ github.ref_name }}-macOS.dmg"
-          gh release create "${{ github.ref_name }}" "LiquidFVD-${{ github.ref_name }}-macOS.dmg" --title "LiquidFVD ${{ github.ref_name }}" --generate-notes \
-            || gh release upload "${{ github.ref_name }}" "LiquidFVD-${{ github.ref_name }}-macOS.dmg" --clobber
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          V="v$LIQUIDFVD_VERSION"
+          PREV=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          {
+            echo "## LiquidFVD $LIQUIDFVD_VERSION"
+            echo
+            echo "**Download:** \`LiquidFVD-$V-macOS.dmg\` (below), open it and drag LiquidFVD to Applications."
+            echo "Already installed? LiquidFVD offers the update by itself (Help > Check for Updates)."
+            echo
+            echo "### Changes"
+            if [ -n "$PREV" ]; then git log --no-merges --pretty='- %s' "$PREV"..HEAD; else git log --no-merges --pretty='- %s' -15; fi
+          } > notes.md
+          cat notes.md
+          gh release create "$V" "dist/LiquidFVD-$V-macOS.dmg" "dist/LiquidFVD-$V-macOS.zip" \
+            --target "$GITHUB_SHA" --title "LiquidFVD $LIQUIDFVD_VERSION" --notes-file notes.md --latest

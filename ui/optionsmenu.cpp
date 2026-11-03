@@ -169,6 +169,7 @@ void optionsMenu::loadExtraSettings()
     darkMode = s.value("appearance/darkMode", false).toBool();
     autosaveMinutes = qBound(1, s.value("autosave/intervalMinutes", 5).toInt(), 120);
     backupCount = qBound(1, s.value("autosave/backupCount", 4).toInt(), 50);
+    checkUpdates = s.value("updates/checkOnStart", true).toBool();
 }
 
 void optionsMenu::saveExtraSettings()
@@ -177,6 +178,7 @@ void optionsMenu::saveExtraSettings()
     s.setValue("appearance/darkMode", darkMode);
     s.setValue("autosave/intervalMinutes", autosaveMinutes);
     s.setValue("autosave/backupCount", backupCount);
+    s.setValue("updates/checkOnStart", checkUpdates);
 }
 
 void optionsMenu::syncExtraOptions()
@@ -184,11 +186,12 @@ void optionsMenu::syncExtraOptions()
     darkModeBox->setChecked(darkMode);
     autosaveBox->setValue(autosaveMinutes);
     backupCountBox->setValue(backupCount);
+    updateBox->setChecked(checkUpdates);
 }
 
 void optionsMenu::setupExtraOptions()
 {
-    QGroupBox* group = new QGroupBox(tr("Appearance && Autosave"), this);
+    QGroupBox* group = new QGroupBox(tr("Appearance, Autosave && Updates"), this);
     QFormLayout* form = new QFormLayout(group);
 
     darkModeBox = new QCheckBox(tr("Dark mode"), group);
@@ -206,6 +209,11 @@ void optionsMenu::setupExtraOptions()
     backupCountBox->setValue(backupCount);
     backupCountBox->setToolTip(tr("Backups are kept in the project's \"Backups\" folder and overwritten in rotation."));
     form->addRow(tr("Rotating backups"), backupCountBox);
+
+    updateBox = new QCheckBox(tr("Check for updates on start"), group);
+    updateBox->setChecked(checkUpdates);
+    updateBox->setToolTip(tr("Looks for a newer LiquidFVD on GitHub (at most once a day)."));
+    form->addRow(QString(), updateBox);
 
     ui->verticalLayout->addWidget(group);
 
@@ -602,6 +610,7 @@ void optionsMenu::on_buttonBox_accepted()
     darkMode = darkModeBox->isChecked();
     autosaveMinutes = autosaveBox->value();
     backupCount = backupCountBox->value();
+    checkUpdates = updateBox->isChecked();
     saveExtraSettings();
     gloParent->applyAppearanceAndAutosave();
 
