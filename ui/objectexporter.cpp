@@ -76,7 +76,7 @@ void objectExporter::on_buttonBox_accepted()
 {
 #ifdef FVD_NO_LIB3DS
     QMessageBox::information(gloParent, "Export 3ds",
-                             "This build of FVD++ was made without lib3ds, so .3ds export is not available.\n"
+                             "This build of LiquidFVD was made without lib3ds, so .3ds export is not available.\n"
                              "NoLimits export (File > Export) works as usual.");
     return;
 #else

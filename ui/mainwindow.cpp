@@ -38,6 +38,7 @@
 #include "backupmanager.h"
 #include "theme.h"
 #include "timelinestrip.h"
+#include "updater.h"
 #include <QSettings>
 #include <QFileInfo>
 #include <QDir>
@@ -77,7 +78,7 @@ MainWindow::MainWindow(QWidget *parent) :
     // set up all sub widgets etc
     project = ui->projectTab;
     currentFileName.clear();
-    this->setWindowTitle(QString("FVD++ - unsaved Work"));
+    this->setWindowTitle(QString("LiquidFVD - unsaved Work"));
 
 
     // set up GL frame
@@ -179,6 +180,19 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(projectMedia::instance(), SIGNAL(playbackStateChanged(bool)), this, SLOT(onPlaybackStateChanged(bool)));
 
+    // updates from GitHub
+    quitWithoutAsking = false;
+    mUpdater = new updater(this);
+    connect(mUpdater, SIGNAL(aboutToInstall()), this, SLOT(quitForUpdate()));
+    ui->menuHelp->addSeparator();
+    a = ui->menuHelp->addAction(tr("Check for Updates..."));
+    a->setMenuRole(QAction::ApplicationSpecificRole);
+    connect(a, &QAction::triggered, mUpdater, &updater::checkNow);
+    a = ui->menuHelp->addAction(tr("About LiquidFVD"));
+    a->setMenuRole(QAction::AboutRole);
+    connect(a, &QAction::triggered, this, &MainWindow::showAbout);
+    QTimer::singleShot(4000, mUpdater, SLOT(checkOnStartup()));   // quiet check once the window is up
+
     connect(this, SIGNAL(emitMessage(QString,int)), ui->statusBar, SLOT(showMessage(QString,int)));
 }
 
@@ -218,9 +232,9 @@ void MainWindow::on_actionExportAs_triggered()
 void MainWindow::updateWindowTitle()
 {
     if(currentFileName.isEmpty()) {
-        this->setWindowTitle(QString("FVD++ - unsaved Work"));
+        this->setWindowTitle(QString("LiquidFVD - unsaved Work"));
     } else {
-        this->setWindowTitle(QString("FVD++ - " + currentFileName));
+        this->setWindowTitle(QString("LiquidFVD - " + currentFileName));
     }
 }
 
@@ -458,7 +472,7 @@ void MainWindow::on_actionQuit_triggered()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-    if (areYouSure()) {
+    if (quitWithoutAsking || areYouSure()) {
         backupSave();
         event->accept();
     } else {
@@ -999,4 +1013,29 @@ void MainWindow::addBookmarkAt(double trackTime, bookmark::Kind kind)
     media->addBookmark(b);
     showMessage(tr("%1 set at %2 s (%3)").arg(b.name).arg(trackTime, 0, 'f', 2)
                 .arg(kind == bookmark::Music ? tr("pinned to the song") : tr("pinned to the ride")));
+}
+
+// ---------------------------------------------------------------------------
+//  Updates / about
+// ---------------------------------------------------------------------------
+
+void MainWindow::quitForUpdate()
+{
+    stopPlayback();
+    backupSave();                 // the open project is safe in its autosave ring
+    quitWithoutAsking = true;
+    close();
+    QTimer::singleShot(3000, [](){ exit(0); });   // in case something keeps the event loop alive
+}
+
+void MainWindow::showAbout()
+{
+    QMessageBox::about(this, tr("About LiquidFVD"),
+        tr("<h3>LiquidFVD %1</h3>"
+           "<p>Force Vector Design for roller coasters, based on FVD++ 0.79 by Stephan \"Lenny\" Alt, "
+           "extended by Vivent Group.</p>"
+           "<p>New: autosave backups, dark mode, graph handles, music timeline with play-along POV, "
+           "bookmarks and automatic updates.</p>"
+           "<p><a href=\"https://github.com/Vivent-Group/LiquidFVD\">github.com/Vivent-Group/LiquidFVD</a><br>"
+           "License: GNU GPL v3. Audio: miniaudio (public domain / MIT-0).</p>").arg(updater::currentVersion()));
 }
