@@ -1,0 +1,58 @@
+name: macOS build
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # Apple Silicon runner -> native arm64 app for M1/M2/M3/M4 Macs
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Qt 5.15 (Homebrew)
+        run: |
+          brew install qt@5
+          echo "$(brew --prefix qt@5)/bin" >> "$GITHUB_PATH"
+
+      - name: glm 0.9.5 (header only)
+        run: git clone --depth 1 --branch 0.9.5.4 https://github.com/g-truc/glm.git deps/glm
+
+      - name: Build
+        run: |
+          qmake -v
+          qmake fvd.pro CONFIG+=release CONFIG+=no3ds "GLM_DIR=$PWD/deps/glm"
+          make -j"$(sysctl -n hw.ncpu)"
+          ls -la FVD.app/Contents/MacOS
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp -R FVD.app dist/LiquidFVD.app
+          macdeployqt dist/LiquidFVD.app -always-overwrite
+          # ad-hoc signature so Apple Silicon runs the bundle after Qt was copied in
+          codesign --force --deep --sign - dist/LiquidFVD.app
+          hdiutil create -volname LiquidFVD -srcfolder dist/LiquidFVD.app -ov -format UDZO dist/LiquidFVD.dmg
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiquidFVD-macOS
+          path: dist/LiquidFVD.dmg
+
+      - name: Publish release (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cp dist/LiquidFVD.dmg "LiquidFVD-${{ github.ref_name }}-macOS.dmg"
+          gh release create "${{ github.ref_name }}" "LiquidFVD-${{ github.ref_name }}-macOS.dmg" --title "LiquidFVD ${{ github.ref_name }}" --generate-notes \
+            || gh release upload "${{ github.ref_name }}" "LiquidFVD-${{ github.ref_name }}-macOS.dmg" --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

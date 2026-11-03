@@ -370,6 +370,11 @@ void MainWindow::on_actionLoad_triggered()
 {
     QString fileName;
 #endif
+    // on macOS a file double-clicked in the Finder arrives here already - open it without asking
+    if(!fileName.isEmpty()) {
+        openProjectFile(fileName);
+        return;
+    }
     glView->paintMode = false;
     QSettings settings("FVD++", "FVD");
     fileName = QFileDialog::getOpenFileName(this, "open FVD Data",

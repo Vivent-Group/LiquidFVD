@@ -183,24 +183,6 @@ unix:!macx {
     INCLUDEPATH += "./renderer/"
     INCLUDEPATH += "./core/"
 
-	INCLUDEPATH += "C:\Development\Libraries\glew-1.12.0\include" # path-to-glew/include
-	INCLUDEPATH += "C:\Development\Libraries\glm" #path-to-glm"
-	INCLUDEPATH += "C:\Development\Libraries\lib3ds-20080909\src" #path-to-lib3ds
-
-    RC_FILE = winicon.rc
-
-    LIBS += -lOpenGL32
-    LIBS += -lGlU32
-	LIBS += "C:\Development\Libraries\glew-1.12.0\lib\Release\x64\glew32.lib" #path-to-glew\lib\Release\Win32\glew32.lib
-	LIBS += "C:\Development\Libraries\glew-1.12.0\bin\Release\x64\glew32.dll" #path-to-glew\bin\Release\Win32\glew32.dll
-	LIBS += "C:\Development\Libraries\lib3ds-20080909\build-lib3ds-64Bit-Release\release\lib3ds.dll" #path-to-glew\bin\Release\Win32\glew32.dll
-}
-
-unix:!macx {
-    INCLUDEPATH += "./ui/"
-    INCLUDEPATH += "./renderer/"
-    INCLUDEPATH += "./core/"
-
     LIBS += -lGL
     LIBS += -lGLU
     LIBS += -lGLEW
@@ -221,12 +203,19 @@ macx {
     INCLUDEPATH += "./ui/"
     INCLUDEPATH += "./renderer/"
     INCLUDEPATH += "./core/"
-    INCLUDEPATH += "./glm/"
+    # glm location can be passed to qmake: qmake GLM_DIR=/path/to/glm ; CONFIG+=no3ds builds without lib3ds
+    isEmpty(GLM_DIR): GLM_DIR = ./glm
+    INCLUDEPATH += $$GLM_DIR
     INCLUDEPATH += "/usr/local/include/"
+    DEFINES += GL_SILENCE_DEPRECATION
 
     LIBS += -framework Foundation -framework Cocoa
-    LIBS += -L /usr/local/lib/
-    LIBS += -l3ds
+    no3ds {
+        DEFINES += FVD_NO_LIB3DS
+    } else {
+        LIBS += -L /usr/local/lib/
+        LIBS += -l3ds
+    }
 
     QMAKE_CFLAGS_X86_64 += -mmacosx-version-min=10.6
     QMAKE_CXXFLAGS_X86_64 = $$QMAKE_CFLAGS_X86_64

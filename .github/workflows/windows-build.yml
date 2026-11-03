@@ -1,10 +1,9 @@
 name: Windows build
 
+# Windows builds are started by hand (Actions > Windows build > Run workflow) or by a version tag.
 on:
   push:
-    branches: [ master ]
     tags: [ 'v*' ]
-  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -96,5 +95,6 @@ jobs:
         run: |
           Compress-Archive dist\LiquidFVD "LiquidFVD-${{ github.ref_name }}-windows.zip"
           gh release create "${{ github.ref_name }}" "LiquidFVD-${{ github.ref_name }}-windows.zip" --title "LiquidFVD ${{ github.ref_name }}" --generate-notes
+          if ($LASTEXITCODE -ne 0) { gh release upload "${{ github.ref_name }}" "LiquidFVD-${{ github.ref_name }}-windows.zip" --clobber }
         env:
           GH_TOKEN: ${{ github.token }}

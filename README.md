@@ -2,11 +2,18 @@
 
 FVD++ (open FVD) by Stephan "Lenny" Alt, extended by Vivent Group.
 
-## Download (Windows)
+## Download (macOS)
 
-Every push to `master` is built automatically: open the **Actions** tab, pick the latest
-green "Windows build" run and download **LiquidFVD-windows** at the bottom. Unzip it and
-start `FVD.exe` - no installation needed. Tagged versions (`v*`) also appear under **Releases**.
+Every push to `master` is built automatically on an Apple Silicon Mac: open the **Actions**
+tab, pick the latest green "macOS build" run and download **LiquidFVD-macOS** at the bottom.
+Open the `.dmg` and drag **LiquidFVD** to Applications.
+
+The app is not notarized by Apple, so the first start needs one of these:
+- right-click LiquidFVD > **Open** > **Open**, or
+- in Terminal: `xattr -dr com.apple.quarantine /Applications/LiquidFVD.app`
+
+The build is native for M1/M2/M3/M4 Macs. A Windows build can be started by hand
+(Actions > "Windows build" > Run workflow). Tagged versions (`v*`) appear under **Releases**.
 
 Existing `.fvd` projects open unchanged, and files saved here still open in the original FVD++.
 
