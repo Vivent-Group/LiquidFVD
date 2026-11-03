@@ -79,7 +79,9 @@ SOURCES += main.cpp\
     ui/conversionpanel.cpp \
     core/secnlcsv.cpp \
     ui/backupmanager.cpp \
-    ui/theme.cpp
+    ui/theme.cpp \
+    ui/projectmedia.cpp \
+    ui/timelinestrip.cpp
 
 HEADERS  += core/undohandler.h \
     core/undoaction.h \
@@ -125,7 +127,10 @@ HEADERS  += core/undohandler.h \
     lenassert.h \
     core/secnlcsv.h \
     ui/backupmanager.h \
-    ui/theme.h
+    ui/theme.h \
+    ui/projectmedia.h \
+    ui/timelinestrip.h \
+    thirdparty/miniaudio/miniaudio.h
 
 FORMS    += ui/transitionwidget.ui \
     ui/trackwidget.ui \
@@ -204,6 +209,12 @@ macx {
         osx/Init.cpp
 }
 
+# miniaudio (public domain / MIT-0): decodes WAV/MP3/FLAC and plays them, no extra libraries needed
+SOURCES += thirdparty/miniaudio/miniaudio.c
+INCLUDEPATH += "./thirdparty/miniaudio/"
+unix:!macx: LIBS += -ldl -lpthread -lm
+macx: LIBS += -framework CoreFoundation -framework CoreAudio -framework AudioToolbox
+
 RESOURCES += \
     resources.qrc
 
@@ -230,6 +241,8 @@ OTHER_FILES += \
     shaders/floor.frag \
     shaders/debug.vert \
     shaders/debug.frag \
+    shaders/marker.vert \
+    shaders/marker.frag \
     metalnormals.png \
     readme.txt \
     sky/negx.jpg \

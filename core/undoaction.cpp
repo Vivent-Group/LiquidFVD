@@ -190,6 +190,7 @@ void undoAction::doUndo()
         break;
     case onChangeSpin:
         hTrack->graphWidgetItem->selFunc->symArg = fromValue.toDouble();
+        hTrack->graphWidgetItem->selFunc->parent->translateValues(hTrack->graphWidgetItem->selFunc);
         hTrack->graphWidgetItem->selectionChanged();
         inTrack->updateTrack(sectionNumber, (int)(hTrack->graphWidgetItem->selFunc->minArgument*F_HZ-1.5f));
         hTrack->graphWidgetItem->redrawGraphs();
@@ -568,6 +569,7 @@ void undoAction::doRedo()
         break;
     case onChangeSpin:
         hTrack->graphWidgetItem->selFunc->symArg = toValue.toDouble();
+        hTrack->graphWidgetItem->selFunc->parent->translateValues(hTrack->graphWidgetItem->selFunc);
         hTrack->graphWidgetItem->selectionChanged();
         inTrack->updateTrack(sectionNumber, (int)(hTrack->graphWidgetItem->selFunc->minArgument*F_HZ-1.5f));
         hTrack->graphWidgetItem->redrawGraphs();

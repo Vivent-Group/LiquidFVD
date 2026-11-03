@@ -159,6 +159,14 @@ private:
 
     mesh_t floorMesh;
     mesh_t skyMesh;
+    mesh_t markerMesh;          // unit sphere for bookmarks
+    int    markerVertexCount;
+    myShader* markerShader;
+    void initMarkerMesh();
+    // bookmarks of a track: world position (floating above the rails) and color
+    void collectBookmarks(trackHandler* _track, QList<glm::vec3>& positions, QList<glm::vec3>& colors);
+    void drawBookmarks();
+    void legacyDrawBookmarks();
     myShader* floorShader;
     myShader* skyShader;
     myShader* trackShader;

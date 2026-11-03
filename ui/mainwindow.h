@@ -28,6 +28,7 @@
 
 #include "track.h"
 #include "saver.h"
+#include "projectmedia.h"
 
 #include <fstream>
 #include <QStyledItemDelegate>
@@ -108,6 +109,15 @@ public:
     // re-reads dark mode + autosave interval from the options and applies them
     void applyAppearanceAndAutosave();
 
+    // ---- music / play-along / bookmarks ----
+    void togglePlayback();          // play from the play head, riding along in POV view
+    void stopPlayback();            // stop, leave POV view, play head back to the start
+    void seekPlayback(double trackTime);
+    void loadMusicDialog();
+    void addBookmarkAtPlayhead();
+    void addBookmarkAt(double trackTime, bookmark::Kind kind);
+    double playheadTime();
+
     void updateProjectWidget();
 
     void keyPressed(QEvent *event);
@@ -177,6 +187,7 @@ public slots:
     void showMessage(QString msg, int msec = 5000);
 
     void toggleDarkMode(bool on);
+    void onPlaybackStateChanged(bool playing);
 
 private slots:
     void on_actionExport_Model_As_triggered();

@@ -27,6 +27,11 @@ class dragLabel;
 class transitionWidget;
 class sectionHandler;
 class QCPAxis;
+class QCPGraph;
+class QCustomPlot;
+class func;
+class timelineStrip;
+class section;
 
 namespace Ui {
 class graphWidget;
@@ -55,6 +60,18 @@ public:
 
     QCPAxis* yAxes[4];
 
+    QCustomPlot* plot();
+    // converts between plot x coordinates and track time (seconds), honouring TIME/DISTANCE mode
+    double coordToTime(double coord);
+    double timeToCoord(double t);
+    // rebuilds the bookmark lines drawn into the plot
+    void updateBookmarkItems();
+    void setPovLineVisible(bool on);
+    timelineStrip* timeline;
+
+protected:
+    bool eventFilter(QObject* obj, QEvent* event);
+
 
 public slots:
     void on_selTree_itemChanged(QTreeWidgetItem *item, int column);
@@ -65,12 +82,41 @@ public slots:
 
     void on_plotter_customContextMenuRequested(const QPoint &pos);
     void setBezPoints();
+    void onBookmarksChanged();
 
 private:
     Ui::graphWidget *ui;
     QList<graphHandler*> pGraphList;
     QList<dragLabel*> bezPoints;
     bool phantomChanges;
+
+    // ---- draggable transition end points ("handles") ----
+    struct handleInfo { int vertex; double x; double y; };
+    QList<handleInfo> currentHandles();     // vertices of the selected function, in plot coordinates
+    func* handleFunc();                     // function the handles belong to (or NULL)
+    QCPAxis* valueAxisFor(func* f);
+    double sectionStartCoord();
+    int  handleAt(const QPoint& pixel);     // vertex under the mouse, -1 if none
+    void updateHandleGraph();
+    void applyHandleDrag(const QPoint& pixel, bool freeMove);
+    void finishHandleDrag();
+    double niceStep(QCPAxis* axis, double minStep);
+
+    QList<func*> sectionFuncs(section* sec);
+
+    QCPGraph* handleGraph;
+    int    dragVertex;                      // -1 = no drag in progress
+    func*  dragFunc;
+    QList<func*> dragFuncs;                 // all functions of the section (the last point moves them all)
+    QList<QList<float> > dragOldLength;     // per function / transition, captured at drag start
+    QList<QList<float> > dragOldSym;
+    float  dragNextMax;                     // end of the following transition, kept fixed while dragging
+    float  dragOrigMax;                     // dragged point at drag start
+    float  dragOrigVal;
+    float  dragOrigSectionEnd;
+    QPoint dragPressPos;
+    QPoint dragGrabOffset;                  // point centre - click position
+    qint64 lastDragApply;
 };
 
 #endif // GRAPHWIDGET_H

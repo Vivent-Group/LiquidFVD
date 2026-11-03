@@ -37,6 +37,7 @@
 #include "objectexporter.h"
 #include "backupmanager.h"
 #include "theme.h"
+#include "timelinestrip.h"
 #include <QSettings>
 #include <QFileInfo>
 #include <QDir>
@@ -153,6 +154,31 @@ MainWindow::MainWindow(QWidget *parent) :
     theme::init();
     applyAppearanceAndAutosave();
 
+    // music / play-along / bookmarks
+    QMenu* timelineMenu = new QMenu(tr("Timeline"), this);
+    ui->menuBar->insertMenu(ui->menuHelp->menuAction(), timelineMenu);
+    QAction* a;
+    a = timelineMenu->addAction(tr("Play / Pause"));
+    a->setShortcut(QKeySequence(tr("Ctrl+P")));
+    a->setShortcutContext(Qt::ApplicationShortcut);
+    connect(a, &QAction::triggered, this, &MainWindow::togglePlayback);
+    a = timelineMenu->addAction(tr("Stop"));
+    a->setShortcut(QKeySequence(tr("Ctrl+Shift+P")));
+    a->setShortcutContext(Qt::ApplicationShortcut);
+    connect(a, &QAction::triggered, this, &MainWindow::stopPlayback);
+    timelineMenu->addSeparator();
+    a = timelineMenu->addAction(tr("Add Bookmark at Play Head"));
+    a->setShortcut(QKeySequence(tr("Ctrl+M")));
+    a->setShortcutContext(Qt::ApplicationShortcut);
+    connect(a, &QAction::triggered, this, &MainWindow::addBookmarkAtPlayhead);
+    timelineMenu->addSeparator();
+    a = timelineMenu->addAction(tr("Load Music..."));
+    connect(a, &QAction::triggered, this, &MainWindow::loadMusicDialog);
+    a = timelineMenu->addAction(tr("Remove Music"));
+    connect(a, &QAction::triggered, projectMedia::instance(), &projectMedia::clearMusic);
+
+    connect(projectMedia::instance(), SIGNAL(playbackStateChanged(bool)), this, SLOT(onPlaybackStateChanged(bool)));
+
     connect(this, SIGNAL(emitMessage(QString,int)), ui->statusBar, SLOT(showMessage(QString,int)));
 }
 
@@ -200,9 +226,11 @@ void MainWindow::updateWindowTitle()
 
 void MainWindow::resetToUnsavedProject()
 {
+    stopPlayback();
     currentFileName.clear();
     updateWindowTitle();
     ui->projectTab->init();
+    projectMedia::instance()->reset();
 }
 
 void MainWindow::on_actionNew_triggered()
@@ -270,6 +298,10 @@ bool MainWindow::writeProject(const QString& fileName)
     saver* gott = new saver(fileName, ui->projectTab, this);
     QString output = gott->doSave();
     delete gott;
+    if(!output.contains("Error")) {
+        QString err;
+        if(!projectMedia::instance()->save(fileName, &err)) output = "Error: " + err;
+    }
     showMessage(output.contains("Error") ? QString("Could not save %1").arg(fileName) : output);
     return !output.contains("Error");
 }
@@ -277,6 +309,7 @@ bool MainWindow::writeProject(const QString& fileName)
 void MainWindow::openProjectFile(const QString& fileName)
 {
     // snapshot the project that is about to be closed
+    stopPlayback();
     backupSave();
 
     currentFileName.clear();
@@ -314,6 +347,8 @@ void MainWindow::openProjectFile(const QString& fileName)
         } else {
             currentFileName = fileName;
         }
+        // music + bookmarks of the project (the backup case reads the original's)
+        projectMedia::instance()->load(currentFileName);
         // first backup right after opening, then every few minutes
         backupSave();
     }
@@ -726,6 +761,7 @@ void MainWindow::sectionChanged()
 void MainWindow::on_tabChooser_currentChanged(int index)
 {
     if(phantomChanges) return;
+    if(projectMedia::instance()->isPlaying() || glView->povMode) stopPlayback();
 
     phantomChanges = true;
 
@@ -822,4 +858,140 @@ void MainWindow::on_actionExport_triggered()
     } else {
         on_actionExportAs_triggered();
     }
+}
+
+// ---------------------------------------------------------------------------
+//  Music, play-along in POV view, bookmarks
+// ---------------------------------------------------------------------------
+
+static trackHandler* handlerOf(track* t)
+{
+    QList<trackHandler*> list = gloParent->getTrackList();
+    for(int i = 0; i < list.size(); ++i) if(list[i]->trackData == t) return list[i];
+    return NULL;
+}
+
+double MainWindow::playheadTime()
+{
+    projectMedia* media = projectMedia::instance();
+    if(media->isPlaying() || glView->povMode) return glView->povPos / F_HZ;
+    return media->cursorTime();
+}
+
+void MainWindow::togglePlayback()
+{
+    projectMedia* media = projectMedia::instance();
+    if(media->isPlaying()) {
+        // pause: stay in POV view at the current spot
+        media->stopPlayback();
+        media->setCursorTime(glView->povPos / F_HZ);
+        return;
+    }
+
+    track* t = curTrack();
+    if(!t || !mGraphWidget) {
+        showMessage(tr("Open a track (double-click it in the project tab) to play it"));
+        return;
+    }
+    const int n = t->getNumPoints();
+    if(n < 2) {
+        showMessage(tr("The track has no sections to ride yet"));
+        return;
+    }
+
+    double start = playheadTime();
+    if(start*F_HZ >= n - 10 || start < 0.) start = 0.;   // at the end: start over
+
+    glView->povPos = (int)(start * F_HZ);
+    glView->povNode = t->getPoint(glView->povPos);
+    glView->povMode = true;
+    mGraphWidget->setPovLineVisible(true);
+
+    media->startPlayback(start);
+    if(media->hasMusic() && !media->audioDeviceAvailable()) {
+        showMessage(tr("No audio output found - playing without sound"), 6000);
+    }
+}
+
+void MainWindow::stopPlayback()
+{
+    projectMedia* media = projectMedia::instance();
+    media->stopPlayback();
+    media->setCursorTime(0.);
+    if(glView->povMode) {
+        glView->povMode = false;
+        glView->povPos = 0;
+        if(mGraphWidget) mGraphWidget->drawGraph(10); // 10 = povPos, hides the line
+    }
+    if(mGraphWidget && mGraphWidget->timeline) mGraphWidget->timeline->refresh();
+}
+
+void MainWindow::seekPlayback(double trackTime)
+{
+    track* t = curTrack();
+    if(!t) return;
+    double dur = t->getNumPoints() / F_HZ;
+    if(trackTime < 0.) trackTime = 0.;
+    if(trackTime > dur) trackTime = dur;
+
+    projectMedia* media = projectMedia::instance();
+    media->setCursorTime(trackTime);
+    if(glView->povMode || media->isPlaying()) {
+        glView->povPos = (int)(trackTime * F_HZ);
+        glView->povNode = t->getPoint(glView->povPos);
+        if(media->isPlaying()) media->startPlayback(trackTime);   // re-sync the song
+        if(mGraphWidget) mGraphWidget->drawGraph(10);
+    }
+    if(mGraphWidget && mGraphWidget->timeline) mGraphWidget->timeline->refresh();
+}
+
+void MainWindow::onPlaybackStateChanged(bool playing)
+{
+    Q_UNUSED(playing);
+    if(mGraphWidget && mGraphWidget->timeline) mGraphWidget->timeline->refresh();
+}
+
+void MainWindow::loadMusicDialog()
+{
+    QSettings settings("FVD++", "FVD");
+    QString startDir = settings.value("paths/lastMusicDir",
+                                      currentFileName.isEmpty() ? QDir::homePath() : QFileInfo(currentFileName).absolutePath()).toString();
+    glView->paintMode = false;
+    QString file = QFileDialog::getOpenFileName(this, tr("Load Music"), startDir,
+                                                tr("Audio (*.wav *.mp3 *.flac);;All Files (*)"));
+    glView->paintMode = true;
+    if(file.isEmpty()) return;
+    settings.setValue("paths/lastMusicDir", QFileInfo(file).absolutePath());
+
+    QString err;
+    if(!projectMedia::instance()->loadMusic(file, &err)) {
+        QMessageBox::warning(this, tr("Load Music"), err);
+        return;
+    }
+    showMessage(tr("Music loaded: %1 (%2 s)").arg(QFileInfo(file).fileName())
+                .arg(projectMedia::instance()->musicDuration(), 0, 'f', 1));
+}
+
+void MainWindow::addBookmarkAtPlayhead()
+{
+    projectMedia* media = projectMedia::instance();
+    double t = playheadTime();
+    bool onSong = media->hasMusic() && t >= media->musicStart() && t <= media->musicStart() + media->musicDuration();
+    addBookmarkAt(t, onSong ? bookmark::Music : bookmark::Track);
+}
+
+void MainWindow::addBookmarkAt(double trackTime, bookmark::Kind kind)
+{
+    projectMedia* media = projectMedia::instance();
+    trackHandler* th = handlerOf(curTrack());
+    if(kind == bookmark::Track && !th) {
+        showMessage(tr("Open a track to place a ride bookmark"));
+        return;
+    }
+    if(kind == bookmark::Music && !media->hasMusic()) kind = bookmark::Track;
+    if(kind == bookmark::Track && !th) return;
+    bookmark b = media->makeBookmark(trackTime, th, kind, QString());
+    media->addBookmark(b);
+    showMessage(tr("%1 set at %2 s (%3)").arg(b.name).arg(trackTime, 0, 'f', 2)
+                .arg(kind == bookmark::Music ? tr("pinned to the song") : tr("pinned to the ride")));
 }

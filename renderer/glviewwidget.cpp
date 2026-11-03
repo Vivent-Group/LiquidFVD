@@ -27,6 +27,8 @@
 #include "myshader.h"
 #include "mytexture.h"
 #include "myframebuffer.h"
+#include "projectmedia.h"
+#include "timelinestrip.h"
 
 #include "osx/common.h"
 #include <string>
@@ -68,6 +70,8 @@ glViewWidget::glViewWidget(QWidget *parent) : QGLWidget(parent) {
 	preDistortionFb = NULL;
 	floorOpacity = 0.8;
     initialized = 0;
+    markerShader = NULL;
+    markerVertexCount = 0;
 }
 
 glViewWidget::~glViewWidget()
@@ -600,6 +604,7 @@ void glViewWidget::paintGL()
 					drawTrack(trackList[i]);
 				}
 			}
+			drawBookmarks();
 			drawFloor();
 			drawSky();
 		}
@@ -692,6 +697,7 @@ void glViewWidget::paintGL()
 				legacyDrawTrack(trackList[i]);
 			}
 		}
+		legacyDrawBookmarks();
 	}
 }
 
@@ -847,6 +853,7 @@ void glViewWidget::initializeGL()
 		initFloorMesh();
 		initShaders();
 		initTextures();
+		initMarkerMesh();
 
 
 		/*initFloor();
@@ -1322,7 +1329,28 @@ void glViewWidget::moveCamera()
 {
 	if(povMode)
 	{
-		povPos += (int)(F_HZ*renderTime)*cameraBoost*(cameraMov.x - cameraMov.z);
+		projectMedia* media = projectMedia::instance();
+		if(media->isPlaying() && gloParent->curTrack())
+		{
+			// play-along: the ride follows the song clock
+			int numPoints = gloParent->curTrack()->getNumPoints();
+			povPos = (int)(media->playbackTrackTime()*F_HZ);
+			if(povPos < 0) povPos = 0;
+			if(povPos >= numPoints)
+			{
+				povPos = numPoints;
+				media->stopPlayback();          // end of the ride - stay at the end in POV view
+				media->setCursorTime(povPos/F_HZ);
+			}
+		}
+		else
+		{
+			povPos += (int)(F_HZ*renderTime)*cameraBoost*(cameraMov.x - cameraMov.z);
+		}
+		if(gloParent->mGraphWidget && gloParent->mGraphWidget->timeline)
+		{
+			gloParent->mGraphWidget->timeline->refresh();
+		}
 		if(gloParent->curTrack())
 		{
 			if(povPos < 0)
@@ -1741,4 +1769,139 @@ void glViewWidget::legacyDrawTrack(trackHandler *_track)
 			glEnd();
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+//  Bookmarks in 3D: a colored ball floating above the track
+// ---------------------------------------------------------------------------
+
+static void buildUnitSphere(QVector<float>& verts, int stacks, int slices)
+{
+	// triangle list
+	for(int i = 0; i < stacks; ++i)
+	{
+		float t0 = F_PI*i/stacks, t1 = F_PI*(i+1)/stacks;
+		for(int j = 0; j < slices; ++j)
+		{
+			float p0 = 2.f*F_PI*j/slices, p1 = 2.f*F_PI*(j+1)/slices;
+			glm::vec3 a(sin(t0)*cos(p0), cos(t0), sin(t0)*sin(p0));
+			glm::vec3 b(sin(t1)*cos(p0), cos(t1), sin(t1)*sin(p0));
+			glm::vec3 c(sin(t1)*cos(p1), cos(t1), sin(t1)*sin(p1));
+			glm::vec3 d(sin(t0)*cos(p1), cos(t0), sin(t0)*sin(p1));
+			glm::vec3 tri[6] = { a, b, c, a, c, d };
+			for(int k = 0; k < 6; ++k) { verts << tri[k].x << tri[k].y << tri[k].z; }
+		}
+	}
+}
+
+void glViewWidget::initMarkerMesh()
+{
+	QVector<float> verts;
+	buildUnitSphere(verts, 12, 20);
+	markerVertexCount = verts.size()/3;
+
+	glGenVertexArrays(1, &markerMesh.object);
+	glGenBuffers(1, &markerMesh.buffer);
+	glBindVertexArray(markerMesh.object);
+	glBindBuffer(GL_ARRAY_BUFFER, markerMesh.buffer);
+	glBufferData(GL_ARRAY_BUFFER, verts.size()*sizeof(float), verts.constData(), GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glBindVertexArray(0);
+
+	markerShader = new myShader(":/shaders/marker.vert", ":/shaders/marker.frag");
+	markerShader->useAttribute(0, "aPosition");
+	markerShader->linkProgram();
+}
+
+void glViewWidget::collectBookmarks(trackHandler* _track, QList<glm::vec3>& positions, QList<glm::vec3>& colors)
+{
+	projectMedia* media = projectMedia::instance();
+	QList<bookmark> marks = media->bookmarks();
+	if(marks.isEmpty()) return;
+
+	track* t = _track->trackData;
+	// song bookmarks belong to the track that is being ridden / edited
+	bool isCurrent = gloParent->curTrack() == t;
+	glm::mat4 anchorBase = glm::translate(t->startPos) * glm::rotate(TO_RAD(t->startYaw-90.f), glm::vec3(0.f, 1.f, 0.f));
+	int numPoints = t->getNumPoints();
+
+	for(int i = 0; i < marks.size(); ++i)
+	{
+		if(marks[i].kind == bookmark::Music && !isCurrent) continue;
+		double time = media->bookmarkTrackTime(marks[i], _track);
+		if(time < 0.) continue;
+		int index = (int)(time*F_HZ + 0.5);
+		if(index > numPoints) continue;
+		mnode* node = t->getPoint(index);
+		if(!node) continue;
+		// 3.5 m above the rails (vNorm points down)
+		glm::vec3 local = node->vPos - 3.5f*node->vNorm;
+		positions.append(glm::vec3(anchorBase * glm::vec4(local, 1.f)));
+		QColor c = marks[i].color();
+		colors.append(glm::vec3(c.redF(), c.greenF(), c.blueF()));
+	}
+}
+
+void glViewWidget::drawBookmarks()
+{
+	if(!markerShader) return;
+	QList<glm::vec3> positions, colors;
+	QList<trackHandler*> trackList = gloParent->getTrackList();
+	for(int i = 0; i < trackList.size(); ++i)
+	{
+		if(trackList[i]->trackData->drawTrack) collectBookmarks(trackList[i], positions, colors);
+	}
+	if(positions.isEmpty()) return;
+
+	markerShader->bind();
+	markerShader->useUniform("projectionMatrix", &ProjectionMatrix);
+	markerShader->useUniform("modelMatrix", &ModelMatrix);
+	markerShader->useUniform("radius", 1.2f);
+	glBindVertexArray(markerMesh.object);
+	for(int i = 0; i < positions.size(); ++i)
+	{
+		markerShader->useUniform("center", &positions[i]);
+		markerShader->useUniform("color", &colors[i]);
+		glDrawArrays(GL_TRIANGLES, 0, markerVertexCount);
+	}
+	glBindVertexArray(0);
+}
+
+void glViewWidget::legacyDrawBookmarks()
+{
+	QList<glm::vec3> positions, colors;
+	QList<trackHandler*> trackList = gloParent->getTrackList();
+	for(int i = 0; i < trackList.size(); ++i)
+	{
+		if(trackList[i]->trackData->drawTrack) collectBookmarks(trackList[i], positions, colors);
+	}
+	if(positions.isEmpty()) return;
+
+	static QVector<float> sphere;
+	if(sphere.isEmpty()) buildUnitSphere(sphere, 12, 20);
+
+	glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
+	glDisable(GL_TEXTURE_2D);
+	glDisable(GL_LIGHTING);
+	glDisable(GL_BLEND);
+	glEnable(GL_DEPTH_TEST);
+	glMatrixMode(GL_MODELVIEW);
+	for(int i = 0; i < positions.size(); ++i)
+	{
+		glPushMatrix();
+		glTranslatef(positions[i].x, positions[i].y, positions[i].z);
+		glScalef(1.2f, 1.2f, 1.2f);
+		glBegin(GL_TRIANGLES);
+		for(int v = 0; v < sphere.size(); v += 3)
+		{
+			glm::vec3 n(sphere[v], sphere[v+1], sphere[v+2]);
+			float light = 0.55f + 0.45f*glm::max(glm::dot(n, glm::normalize(glm::vec3(0.3f, 1.f, 0.2f))), 0.f);
+			glColor3f(colors[i].x*light, colors[i].y*light, colors[i].z*light);
+			glVertex3f(n.x, n.y, n.z);
+		}
+		glEnd();
+		glPopMatrix();
+	}
+	glPopAttrib();
 }
