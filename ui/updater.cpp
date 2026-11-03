@@ -43,11 +43,12 @@
 #define LIQUIDFVD_VERSION "0.0.0-dev"
 #endif
 
-static const char* kReleaseApi = "https://api.github.com/repos/Vivent-Group/LiquidFVD/releases/latest";
+static const char* kReleaseApi  = "https://api.github.com/repos/Vivent-Group/LiquidFVD/releases/latest";
+static const char* kReleasePage = "https://github.com/Vivent-Group/LiquidFVD/releases";
 
 updater::updater(QWidget* parentWindow)
     : QObject(parentWindow), mWindow(parentWindow), mCheck(NULL), mDownload(NULL),
-      mProgress(NULL), mProgressTimer(NULL), mInteractive(false)
+      mProgress(NULL), mProgressTimer(NULL), mInteractive(false), mFallback(false)
 {
 }
 
@@ -158,6 +159,7 @@ void updater::startCheck(bool interactive)
 {
     if(mCheck || mDownload) return;     // already busy
     mInteractive = interactive;
+    mFallback = false;
     mCheck = new QProcess(this);
     connect(mCheck, SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(onCheckFinished()));
     QStringList args;
@@ -174,6 +176,26 @@ void updater::startCheck(bool interactive)
     }
 }
 
+void updater::startFallbackCheck()
+{
+    // github.com/<repo>/releases/latest redirects to .../releases/tag/<tag> - no API limit
+    mFallback = true;
+    mCheck = new QProcess(this);
+    connect(mCheck, SIGNAL(finished(int,QProcess::ExitStatus)), this, SLOT(onCheckFinished()));
+    QStringList args;
+    args << "-sS" << "-L" << "--max-time" << "20" << "-o" << (QFileInfo("/dev/null").exists() ? "/dev/null" : "NUL")
+         << "-w" << "%{url_effective}"
+         << "-H" << QString("User-Agent: LiquidFVD-Updater/%1").arg(currentVersion())
+         << QString(kReleasePage) + "/latest";
+    qDebug().noquote() << "Update check (fallback):" << args.last();
+    mCheck->start(curlProgram(), args);
+    if(!mCheck->waitForStarted(3000)) {
+        mCheck->deleteLater();
+        mCheck = NULL;
+        fail(tr("Could not look for updates: curl was not found on this computer."));
+    }
+}
+
 void updater::onCheckFinished()
 {
     QProcess* p = mCheck;
@@ -181,17 +203,47 @@ void updater::onCheckFinished()
     p->deleteLater();
     QByteArray out = p->readAllStandardOutput();
     QString err = QString::fromLocal8Bit(p->readAllStandardError()).trimmed();
+    const bool ok = p->exitStatus() == QProcess::NormalExit && p->exitCode() == 0;
 
-    if(p->exitStatus() != QProcess::NormalExit || p->exitCode() != 0) {
-        qDebug().noquote() << "Update check failed:" << p->exitCode() << err;
-        if(err.contains("404")) fail(tr("There is no LiquidFVD release on GitHub yet."));
-        else fail(tr("Could not reach GitHub to look for updates.\n\n%1").arg(err));
-        emit checkFinished(false);
+    if(mFallback) {
+        // out = final URL after the redirect
+        QString finalUrl = QString::fromUtf8(out).trimmed();
+        QRegExp tagRx("/releases/tag/([^/?#]+)");
+        if(!ok || tagRx.indexIn(finalUrl) < 0) {
+            qDebug().noquote() << "Update check (fallback) failed:" << finalUrl << err;
+            if(ok) fail(tr("There is no LiquidFVD release on GitHub yet."));
+            else fail(tr("Could not reach GitHub to look for updates.\n\n%1").arg(err));
+            emit checkFinished(false);
+            return;
+        }
+        QString tag = QUrl::fromPercentEncoding(tagRx.cap(1).toUtf8());
+        releaseInfo info;
+        info.version = tag.startsWith('v') ? tag.mid(1) : tag;
+        info.title = "LiquidFVD " + info.version;
+        info.pageUrl = finalUrl;
+#if defined(Q_OS_MAC)
+        info.assetName = QString("LiquidFVD-%1-macOS.zip").arg(tag);
+#elif defined(Q_OS_WIN)
+        info.assetName = QString("LiquidFVD-%1-windows.zip").arg(tag);
+#endif
+        if(!info.assetName.isEmpty()) info.assetUrl = QString(kReleasePage) + "/download/" + tag + "/" + info.assetName;
+        handleRelease(info);
         return;
     }
 
-    QSettings s("FVD++", "FVD");
-    s.setValue("updates/lastCheck", QDateTime::currentDateTime());
+    if(!ok) {
+        qDebug().noquote() << "Update check failed:" << p->exitCode() << err;
+        if(err.contains("404")) {
+            fail(tr("There is no LiquidFVD release on GitHub yet."));
+            emit checkFinished(false);
+        } else if((err.contains("403") || err.contains("429")) && qgetenv("LIQUIDFVD_UPDATE_API").isEmpty()) {
+            startFallbackCheck();      // rate-limited API, try the release page
+        } else {
+            fail(tr("Could not reach GitHub to look for updates.\n\n%1").arg(err));
+            emit checkFinished(false);
+        }
+        return;
+    }
 
     releaseInfo info;
     QString perr;
@@ -200,7 +252,21 @@ void updater::onCheckFinished()
         emit checkFinished(false);
         return;
     }
+    handleRelease(info);
+}
+
+void updater::handleRelease(const releaseInfo& info)
+{
+    QSettings s("FVD++", "FVD");
+    s.setValue("updates/lastCheck", QDateTime::currentDateTime());
     qDebug().noquote() << "Update check: latest" << info.version << "- this is" << currentVersion();
+
+    // an earlier install of this version didn't take effect (or did: then forget about it)
+    QString installing = s.value("updates/installing").toString();
+    if(!installing.isEmpty() && compareVersions(currentVersion(), installing) >= 0) {
+        s.remove("updates/installing");
+        installing.clear();
+    }
 
     if(compareVersions(info.version, currentVersion()) <= 0) {
         if(mInteractive) {
@@ -211,6 +277,12 @@ void updater::onCheckFinished()
         return;
     }
     if(!mInteractive && s.value("updates/skipVersion").toString() == info.version) {
+        emit checkFinished(false);
+        return;
+    }
+    if(!mInteractive && installing == info.version) {
+        // installing it didn't give us that version - never loop, let the user decide via the menu
+        qDebug().noquote() << "Updater: version" << info.version << "was installed already but this is still" << currentVersion() << "- not offering it again automatically";
         emit checkFinished(false);
         return;
     }
@@ -393,6 +465,10 @@ bool updater::installMac(const QString& zipFile, QString* error)
         "open \"$3\"\n");
     f.close();
     f.setPermissions(f.permissions() | QFileDevice::ExeOwner);
+
+    QSettings s("FVD++", "FVD");
+    s.setValue("updates/installing", mPending.version);
+    s.sync();
 
     qint64 pid = QCoreApplication::applicationPid();
     if(!QProcess::startDetached("/bin/bash", QStringList() << script << QString::number(pid) << newApp << macBundlePath())) {

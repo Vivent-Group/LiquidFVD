@@ -79,6 +79,8 @@ private slots:
 
 private:
     void startCheck(bool interactive);
+    void startFallbackCheck();     // when the API is rate-limited: read the tag from the release page redirect
+    void handleRelease(const releaseInfo& info);
     void offer(const releaseInfo& info);
     void install(const releaseInfo& info);
     bool installMac(const QString& zipFile, QString* error);
@@ -93,6 +95,7 @@ private:
     QProgressDialog* mProgress;
     QTimer*   mProgressTimer;
     bool      mInteractive;
+    bool      mFallback;
     releaseInfo mPending;
     QString   mDownloadFile;
 };
