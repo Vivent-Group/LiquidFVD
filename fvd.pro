@@ -77,7 +77,9 @@ SOURCES += main.cpp\
     ui/exportui.cpp \
     ui/draglabel.cpp \
     ui/conversionpanel.cpp \
-    core/secnlcsv.cpp
+    core/secnlcsv.cpp \
+    ui/backupmanager.cpp \
+    ui/theme.cpp
 
 HEADERS  += core/undohandler.h \
     core/undoaction.h \
@@ -121,7 +123,9 @@ HEADERS  += core/undohandler.h \
     ui/draglabel.h \
     ui/conversionpanel.h \
     lenassert.h \
-    core/secnlcsv.h
+    core/secnlcsv.h \
+    ui/backupmanager.h \
+    ui/theme.h
 
 FORMS    += ui/transitionwidget.ui \
     ui/trackwidget.ui \

@@ -17,6 +17,7 @@
 */
 
 #include "graphwidget.h"
+#include "theme.h"
 #include "mainwindow.h"
 #include "graphhandler.h"
 #include "ui_graphwidget.h"
@@ -61,12 +62,8 @@ graphWidget::graphWidget(QWidget *parent, trackHandler* _track) :
     yAxes[2]->setLabel(QString("Pitch"));
     yAxes[3]->setLabel(QString("Yaw"));
 
-    ui->plotter->xAxis->grid()->setPen(QPen(QColor(220, 220, 220), 1, Qt::DotLine));
-    ui->plotter->xAxis->grid()->setZeroLinePen(QPen(QPen(QColor(220, 220, 220), 1)));
-    for(int i = 0; i < 4; ++i) {
-        yAxes[i]->grid()->setPen(QPen(QColor(220, 220, 220), 1, Qt::DotLine));
-        yAxes[i]->grid()->setZeroLinePen(QPen(QPen(QColor(220, 220, 220), 1)));
-    }
+    // background, axes and grid colors follow the light / dark theme
+    theme::stylePlot(ui->plotter);
 
     pGraphList.append(new graphHandler(ui->selTree->topLevelItem(1)->child(0)->child(0), banking, selTrack, yAxes[0], gloParent->mOptions->rollColor));
     pGraphList.append(new graphHandler(ui->selTree->topLevelItem(1)->child(0)->child(1), rollSpeed, selTrack, yAxes[0], gloParent->mOptions->rollColor));

@@ -70,6 +70,8 @@ class conversionPanel;
 class graphWidget;
 class trackHandler;
 class objectExporter;
+class QTimer;
+class QAction;
 
 namespace Ui {
 class MainWindow;
@@ -102,6 +104,9 @@ public:
     void showAll();
     void addProject(QString fileName);
     void loadProject(QString fileName);
+
+    // re-reads dark mode + autosave interval from the options and applies them
+    void applyAppearanceAndAutosave();
 
     void updateProjectWidget();
 
@@ -171,6 +176,8 @@ public slots:
 
     void showMessage(QString msg, int msec = 5000);
 
+    void toggleDarkMode(bool on);
+
 private slots:
     void on_actionExport_Model_As_triggered();
 
@@ -180,6 +187,18 @@ private:
     Ui::MainWindow *ui;
     void useShader(int shader);
     bool areYouSure();
+
+    // asks for a file name and turns it into <dir>/<name>/<name>.fvd (creating the folder)
+    bool askProjectLocation(const QString& title, QString* projectFile);
+    // loads a project file and takes care of messages, backup restore and the initial backup
+    void openProjectFile(const QString& fileName);
+    // starts an empty, unsaved project without asking anything
+    void resetToUnsavedProject();
+    bool writeProject(const QString& fileName);
+    void updateWindowTitle();
+
+    QTimer*  autosaveTimer;
+    QAction* darkModeAction;
 
     bool phantomChanges;
     QString     currentFileName;

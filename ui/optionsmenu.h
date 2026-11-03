@@ -39,6 +39,8 @@ enum eMeasures
 };
 
 class QColorDialog;
+class QCheckBox;
+class QSpinBox;
 
 namespace Ui {
 class optionsMenu;
@@ -76,6 +78,14 @@ public:
 
     bool drawGrid;
     QColor backgroundColor;
+
+    // appearance & autosave (stored with QSettings, independent of options.cfg)
+    bool darkMode;
+    int autosaveMinutes;    // interval between rotating backups
+    int backupCount;        // number of backup slots per project
+    void loadExtraSettings();
+    void saveExtraSettings();
+    void syncExtraOptions();   // refresh the widgets from the members (before showing)
 
 private slots:
     void on_rollColor0_clicked();
@@ -145,6 +155,11 @@ private:
     Ui::optionsMenu *ui;
 
     QString optionsFile;
+
+    QCheckBox* darkModeBox;
+    QSpinBox*  autosaveBox;
+    QSpinBox*  backupCountBox;
+    void setupExtraOptions();
 
     bool phantomChanges;
 };

@@ -25,6 +25,11 @@
 #include "glviewwidget.h"
 #include "mainwindow.h"
 #include "trackmesh.h"
+#include <QSettings>
+#include <QGroupBox>
+#include <QFormLayout>
+#include <QCheckBox>
+#include <QSpinBox>
 
 extern MainWindow* gloParent;
 extern glViewWidget* glView;
@@ -37,10 +42,12 @@ optionsMenu::optionsMenu(QWidget *parent) :
     phantomChanges = false;
 
 #ifdef Q_OS_MAC
-    this->setFixedSize(700, 700);
-    this->setMinimumSize(700, 700);
-    this->setMaximumSize(700, 700);
+    this->setFixedSize(700, 820);
+    this->setMinimumSize(700, 820);
+    this->setMaximumSize(700, 820);
 #endif
+
+    loadExtraSettings();
 
     optionsFile = common::getResource("options.cfg", true);
 
@@ -151,6 +158,63 @@ optionsMenu::optionsMenu(QWidget *parent) :
 #endif
 #ifdef Q_OS_MAC
     this->ui->glBox->setCurrentIndex(glPolicy-1);
+#endif
+
+    setupExtraOptions();
+}
+
+void optionsMenu::loadExtraSettings()
+{
+    QSettings s("FVD++", "FVD");
+    darkMode = s.value("appearance/darkMode", false).toBool();
+    autosaveMinutes = qBound(1, s.value("autosave/intervalMinutes", 5).toInt(), 120);
+    backupCount = qBound(1, s.value("autosave/backupCount", 4).toInt(), 50);
+}
+
+void optionsMenu::saveExtraSettings()
+{
+    QSettings s("FVD++", "FVD");
+    s.setValue("appearance/darkMode", darkMode);
+    s.setValue("autosave/intervalMinutes", autosaveMinutes);
+    s.setValue("autosave/backupCount", backupCount);
+}
+
+void optionsMenu::syncExtraOptions()
+{
+    darkModeBox->setChecked(darkMode);
+    autosaveBox->setValue(autosaveMinutes);
+    backupCountBox->setValue(backupCount);
+}
+
+void optionsMenu::setupExtraOptions()
+{
+    QGroupBox* group = new QGroupBox(tr("Appearance && Autosave"), this);
+    QFormLayout* form = new QFormLayout(group);
+
+    darkModeBox = new QCheckBox(tr("Dark mode"), group);
+    darkModeBox->setChecked(darkMode);
+    form->addRow(QString(), darkModeBox);
+
+    autosaveBox = new QSpinBox(group);
+    autosaveBox->setRange(1, 120);
+    autosaveBox->setSuffix(tr(" min"));
+    autosaveBox->setValue(autosaveMinutes);
+    form->addRow(tr("Autosave every"), autosaveBox);
+
+    backupCountBox = new QSpinBox(group);
+    backupCountBox->setRange(1, 50);
+    backupCountBox->setValue(backupCount);
+    backupCountBox->setToolTip(tr("Backups are kept in the project's \"Backups\" folder and overwritten in rotation."));
+    form->addRow(tr("Rotating backups"), backupCountBox);
+
+    ui->verticalLayout->addWidget(group);
+
+    // the dialog has a fixed size in the .ui file - grow it by the new group's height
+    int extra = group->sizeHint().height() + ui->verticalLayout->spacing();
+#ifndef Q_OS_MAC
+    setMinimumHeight(minimumHeight() + extra);
+    setMaximumHeight(maximumHeight() + extra);
+    resize(width(), height() + extra);
 #endif
 }
 
@@ -534,6 +598,13 @@ void optionsMenu::onYawColor3_received()
 void optionsMenu::on_buttonBox_accepted()
 {
     saveToOptionsFile();
+
+    darkMode = darkModeBox->isChecked();
+    autosaveMinutes = autosaveBox->value();
+    backupCount = backupCountBox->value();
+    saveExtraSettings();
+    gloParent->applyAppearanceAndAutosave();
+
     gloParent->updateInfoPanel();
 }
 

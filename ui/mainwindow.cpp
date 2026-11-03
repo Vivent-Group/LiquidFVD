@@ -35,6 +35,13 @@
 #include <QFileDialog>
 #include <QCloseEvent>
 #include "objectexporter.h"
+#include "backupmanager.h"
+#include "theme.h"
+#include <QSettings>
+#include <QFileInfo>
+#include <QDir>
+#include <QAction>
+#include <QMenu>
 
 MainWindow* gloParent;
 glViewWidget* glView;
@@ -132,9 +139,19 @@ MainWindow::MainWindow(QWidget *parent) :
     connect(timer, SIGNAL(timeout()), this, SLOT(showCurInfoPanel()));
 	timer->start(10);
 
-    QTimer *autosave = new QTimer(this);
-    connect(autosave, SIGNAL(timeout()), this, SLOT(doAutoSave()));
-    autosave->start(1000*60);
+    // rotating backups, interval comes from the options (default 5 min)
+    autosaveTimer = new QTimer(this);
+    connect(autosaveTimer, SIGNAL(timeout()), this, SLOT(doAutoSave()));
+
+    darkModeAction = new QAction(tr("Dark Mode"), this);
+    darkModeAction->setCheckable(true);
+    darkModeAction->setShortcut(QKeySequence(tr("Ctrl+Shift+D")));
+    ui->menuEdit->addSeparator();
+    ui->menuEdit->addAction(darkModeAction);
+    connect(darkModeAction, SIGNAL(toggled(bool)), this, SLOT(toggleDarkMode(bool)));
+
+    theme::init();
+    applyAppearanceAndAutosave();
 
     connect(this, SIGNAL(emitMessage(QString,int)), ui->statusBar, SLOT(showMessage(QString,int)));
 }
@@ -172,24 +189,103 @@ void MainWindow::on_actionExportAs_triggered()
     exportScreen->show();
 }
 
-void MainWindow::on_actionNew_triggered()
+void MainWindow::updateWindowTitle()
+{
+    if(currentFileName.isEmpty()) {
+        this->setWindowTitle(QString("FVD++ - unsaved Work"));
+    } else {
+        this->setWindowTitle(QString("FVD++ - " + currentFileName));
+    }
+}
+
+void MainWindow::resetToUnsavedProject()
 {
     currentFileName.clear();
-    this->setWindowTitle(QString("FVD++ - unsaved Work"));
+    updateWindowTitle();
     ui->projectTab->init();
+}
+
+void MainWindow::on_actionNew_triggered()
+{
+    // keep a snapshot of whatever was open before it gets replaced
+    backupSave();
+
+    resetToUnsavedProject();
+
+    // a new project gets its own folder right away: <dir>/<name>/<name>.fvd
+    // cancelling keeps working on an unsaved project (still autosaved)
+    QString file;
+    if(askProjectLocation(tr("Create New Project"), &file)) {
+        if(writeProject(file)) {
+            currentFileName = file;
+        }
+    }
+    updateWindowTitle();
+    autosaveTimer->start();
 }
 
 void MainWindow::addProject(QString fileName) {
     ui->projectTab->importFromProject(fileName);
 }
 
-void MainWindow::loadProject(QString fileName)
+bool MainWindow::askProjectLocation(const QString& title, QString* projectFile)
 {
+    QSettings settings("FVD++", "FVD");
+    QString startDir = settings.value("paths/lastProjectParent", QDir::homePath()).toString();
+    if(!currentFileName.isEmpty()) {
+        // suggest the folder that contains the current project folder
+        QDir d = QFileInfo(currentFileName).absoluteDir();
+        if(d.dirName() == backupManager::baseNameFor(currentFileName)) d.cdUp();
+        startDir = d.absolutePath();
+    }
+
+    QString chosen = QFileDialog::getSaveFileName(this, title, startDir, tr("FVD Data (*.fvd)"));
+    if(chosen.isEmpty()) return false;
+    if(!chosen.endsWith(".fvd", Qt::CaseInsensitive)) chosen.append(".fvd");
+
+    QString error;
+    QString target = backupManager::makeProjectFolder(chosen, &error);
+    if(target.isEmpty()) {
+        QMessageBox::warning(this, tr("Application"), error);
+        return false;
+    }
+    if(target != QFileInfo(chosen).absoluteFilePath() && QFileInfo(target).exists()) {
+        if(QMessageBox::question(this, tr("Application"),
+                                 tr("%1 already exists.\nDo you want to replace it?").arg(target),
+                                 QMessageBox::Yes | QMessageBox::Cancel) != QMessageBox::Yes) {
+            return false;
+        }
+    }
+
+    QDir parent = QFileInfo(target).absoluteDir();
+    parent.cdUp();
+    settings.setValue("paths/lastProjectParent", parent.absolutePath());
+
+    *projectFile = target;
+    return true;
+}
+
+bool MainWindow::writeProject(const QString& fileName)
+{
+    saver* gott = new saver(fileName, ui->projectTab, this);
+    QString output = gott->doSave();
+    delete gott;
+    showMessage(output.contains("Error") ? QString("Could not save %1").arg(fileName) : output);
+    return !output.contains("Error");
+}
+
+void MainWindow::openProjectFile(const QString& fileName)
+{
+    // snapshot the project that is about to be closed
+    backupSave();
+
     currentFileName.clear();
 
     saver* gott = new saver(fileName, ui->projectTab, this);
     QString output = gott->doLoad();
+    delete gott;
 
+    bool loaded = true;
     if(output.contains("Warning:") || output.contains("Error:")) {
         QMessageBox mb(this);
         mb.setWindowTitle(tr("Application"));
@@ -198,17 +294,36 @@ void MainWindow::loadProject(QString fileName)
         mb.setDefaultButton(QMessageBox::Ok);
         mb.exec();
 
-        if(output.contains("Warning:")) currentFileName = fileName;
-        else if(output.contains("Error:")) on_actionNew_triggered();
+        if(output.contains("Error:")) {
+            loaded = false;
+            resetToUnsavedProject();
+        }
     } else {
         ui->statusBar->showMessage(output, 5000);
-        currentFileName = fileName;
     }
 
     glView->paintMode = true;
 
-    delete gott;
-    this->setWindowTitle(QString("FVD++ - " + currentFileName));
+    if(loaded) {
+        if(backupManager::isBackupFile(fileName)) {
+            // opening a backup = restoring it into its project; never save over the backup itself
+            currentFileName = backupManager::originalForBackup(fileName);
+            QMessageBox::information(this, tr("Backup restored"),
+                tr("You opened an autosave backup.\n\nIt will be saved to the project file\n%1\nwhen you press Save.")
+                .arg(currentFileName));
+        } else {
+            currentFileName = fileName;
+        }
+        // first backup right after opening, then every few minutes
+        backupSave();
+    }
+    autosaveTimer->start();
+    updateWindowTitle();
+}
+
+void MainWindow::loadProject(QString fileName)
+{
+    openProjectFile(fileName);
 }
 
 #ifdef Q_OS_MAC
@@ -221,37 +336,17 @@ void MainWindow::on_actionLoad_triggered()
     QString fileName;
 #endif
     glView->paintMode = false;
-    fileName = QFileDialog::getOpenFileName(this, "open FVD Data", "", "FVD Data(*.fvd);;Backed Up FVD Data(*.bak)", 0, 0);
+    QSettings settings("FVD++", "FVD");
+    fileName = QFileDialog::getOpenFileName(this, "open FVD Data",
+                                            settings.value("paths/lastProjectParent", QString()).toString(),
+                                            "FVD Data(*.fvd);;Backed Up FVD Data(*.bak)", 0, 0);
 
     if(fileName.isEmpty()) {
         glView->paintMode = true;
         return;
     }
 
-    currentFileName.clear();
-
-    saver* gott = new saver(fileName, ui->projectTab, this);
-    QString output = gott->doLoad();
-
-    if(output.contains("Warning:") || output.contains("Error:")) {
-        QMessageBox mb(this);
-        mb.setWindowTitle(tr("Application"));
-        mb.setText(output);
-        mb.setIcon(QMessageBox::Warning);
-        mb.setDefaultButton(QMessageBox::Ok);
-        mb.exec();
-
-        if(output.contains("Warning:")) currentFileName = fileName;
-        else if(output.contains("Error:")) on_actionNew_triggered();
-    } else {
-        ui->statusBar->showMessage(output, 5000);
-        currentFileName = fileName;
-    }
-
-    glView->paintMode = true;
-
-    delete gott;
-    this->setWindowTitle(QString("FVD++ - " + currentFileName));
+    openProjectFile(fileName);
 }
 
 void MainWindow::on_actionSave_triggered()
@@ -263,26 +358,22 @@ void MainWindow::on_actionSave_triggered()
 
     if(currentFileName.isEmpty()) {
         on_actionSave_As_triggered();
+        return;
     }
-    saver* gott = new saver(currentFileName, ui->projectTab, this);
-    QString output = gott->doSave();
-
-    ui->statusBar->showMessage(output, 5000);
-
-    delete gott;
-    this->setWindowTitle(QString("FVD++ - " + currentFileName));
+    writeProject(currentFileName);
+    updateWindowTitle();
 }
 
 void MainWindow::backupSave()
 {
-    if(currentFileName.isEmpty()) {
-        return;
+    QString written;
+    backupManager::Result r = backupManager::writeBackup(ui->projectTab, currentFileName, mOptions->backupCount, &written);
+    if(r == backupManager::Written) {
+        showMessage(QString("Autosave: %1").arg(QDir::toNativeSeparators(written)), 4000);
+    } else if(r == backupManager::Failed) {
+        showMessage(QString("Autosave failed - could not write to %1")
+                    .arg(QDir::toNativeSeparators(backupManager::backupDirFor(currentFileName))), 8000);
     }
-    saver* gott = new saver(QString().append(currentFileName).append(".bak"), ui->projectTab, this);
-    gott->doSave();
-    delete gott;
-    this->setWindowTitle(QString("FVD++ - " + currentFileName));
-    showMessage(QString("Executed autosave to ").append(currentFileName).append(".bak"));
 }
 
 void MainWindow::on_actionSave_As_triggered()
@@ -290,22 +381,34 @@ void MainWindow::on_actionSave_As_triggered()
     if(glView->moveMode) {
         return;
     }
-    QString fileName = QFileDialog::getSaveFileName(this, tr("Save File"), "", tr("FVD Data (*.fvd)"));
-
-    if(!fileName.endsWith(".fvd") && !fileName.isEmpty()) {
-        fileName.append(".fvd");
-    }
-    if(fileName.isEmpty()) {
+    QString fileName;
+    if(!askProjectLocation(tr("Save Project As"), &fileName)) {
         return;
     }
-    currentFileName = fileName;
-    saver* gott = new saver(currentFileName, ui->projectTab, this);
-    QString output = gott->doSave();
+    if(writeProject(fileName)) {
+        currentFileName = fileName;
+        backupSave();
+    }
+    updateWindowTitle();
+}
 
-    showMessage(output);
+void MainWindow::applyAppearanceAndAutosave()
+{
+    theme::apply(mOptions->darkMode);
 
-    delete gott;
-    this->setWindowTitle(QString("FVD++ - " + currentFileName));
+    darkModeAction->blockSignals(true);
+    darkModeAction->setChecked(mOptions->darkMode);
+    darkModeAction->blockSignals(false);
+
+    autosaveTimer->setInterval(mOptions->autosaveMinutes * 60 * 1000);
+    if(!autosaveTimer->isActive()) autosaveTimer->start();
+}
+
+void MainWindow::toggleDarkMode(bool on)
+{
+    mOptions->darkMode = on;
+    mOptions->saveExtraSettings();
+    applyAppearanceAndAutosave();
 }
 
 void MainWindow::on_actionQuit_triggered()
@@ -316,6 +419,7 @@ void MainWindow::on_actionQuit_triggered()
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     if (areYouSure()) {
+        backupSave();
         event->accept();
     } else {
         event->ignore();
@@ -580,6 +684,7 @@ void MainWindow::displayStatusMessage(QString message)
 void MainWindow::on_actionOptions_triggered()
 {
     mOptions->setGLVersionString(glView->getGLVersionString());
+    mOptions->syncExtraOptions();
     mOptions->show();
 }
 

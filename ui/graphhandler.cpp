@@ -17,6 +17,7 @@
 */
 
 #include "graphhandler.h"
+#include "theme.h"
 #include "QTreeWidgetItem"
 #include "trackhandler.h"
 #include "lenassert.h"
@@ -419,8 +420,9 @@ void graphHandler::fillBoundaryGraphList(QCPAxis *xAxis, bool _argument)
         curGraph = new QCPGraph(xAxis, usedAxis);
         graphList.append(curGraph);
 
-        curGraph->setPen(QPen(QColor(0, 0, 0, 150), 1, Qt::DashDotLine));
-        curGraph->setBrush(QBrush(QColor(0, 0, 0, 20)));
+        curGraph->setPen(theme::boundaryPen());
+        curGraph->setBrush(theme::boundaryBrush());
+        curGraph->setProperty("fvdBoundary", true);
 
         double n1, n2;
         if(_argument == TIME) {
@@ -454,8 +456,9 @@ void graphHandler::fillBoundaryGraphList(QCPAxis *xAxis, bool _argument)
         curGraph = new QCPGraph(xAxis, usedAxis);
         graphList.append(curGraph);
 
-        curGraph->setPen(QPen(QColor(0, 0, 0, 150), 1, Qt::DashDotLine));
-        curGraph->setBrush(QBrush(QColor(0, 0, 0, 20)));
+        curGraph->setPen(theme::boundaryPen());
+        curGraph->setBrush(theme::boundaryBrush());
+        curGraph->setProperty("fvdBoundary", true);
         if(curTrack->lSections[i] != curTrack->activeSection) {
             if(i == 0) {
                 x.append(0.);
