@@ -38,6 +38,7 @@
 #include <QApplication>
 #include <QFileInfo>
 #include <cmath>
+#include <cstdlib>
 
 extern MainWindow* gloParent;
 extern glViewWidget* glView;

@@ -1,0 +1,100 @@
+name: Windows build
+
+on:
+  push:
+    branches: [ master ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-2022
+    env:
+      GLEW_VERSION: 2.2.0
+      DEPS: ${{ github.workspace }}\deps
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt 5.15 (MSVC 2019, 64 bit)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.15.2'
+          host: windows
+          target: desktop
+          arch: win64_msvc2019_64
+          cache: true
+
+      - name: Set up Visual C++
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: GLEW (prebuilt)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:DEPS | Out-Null
+          Invoke-WebRequest "https://github.com/nigels-com/glew/releases/download/glew-$env:GLEW_VERSION/glew-$env:GLEW_VERSION-win32.zip" -OutFile "$env:DEPS\glew.zip"
+          Expand-Archive "$env:DEPS\glew.zip" -DestinationPath $env:DEPS
+          Rename-Item "$env:DEPS\glew-$env:GLEW_VERSION" "glew"
+
+      - name: glm 0.9.5 (header only)
+        shell: pwsh
+        run: git clone --depth 1 --branch 0.9.5.4 https://github.com/g-truc/glm.git "$env:DEPS\glm"
+
+      # lib3ds is only needed for the .3ds model exporter. If it can't be fetched or built,
+      # FVD++ is built without that exporter instead of failing.
+      - name: lib3ds 2.0 (for .3ds export)
+        id: lib3ds
+        continue-on-error: true
+        shell: cmd
+        run: |
+          cd /d "%DEPS%"
+          curl -fsSL -o lib3ds.zip https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/lib3ds/lib3ds-20080909.zip || exit /b 1
+          powershell -Command "Expand-Archive lib3ds.zip -DestinationPath ."
+          ren lib3ds-20080909 lib3ds
+          cd lib3ds
+          mkdir lib
+          cl /nologo /O2 /DLIB3DS_EXPORTS /D_CRT_SECURE_NO_WARNINGS /Isrc /LD src\*.c /Fe:lib\lib3ds.dll /link /IMPLIB:lib\lib3ds.lib || exit /b 1
+          dir lib
+
+      - name: Build FVD++
+        shell: cmd
+        run: |
+          set EXTRA=
+          if not "${{ steps.lib3ds.outcome }}"=="success" set EXTRA=CONFIG+=no3ds
+          qmake fvd.pro CONFIG+=release "GLEW_DIR=%DEPS:\=/%/glew" "GLM_DIR=%DEPS:\=/%/glm" "LIB3DS_DIR=%DEPS:\=/%/lib3ds" %EXTRA%
+          nmake
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $dist = "dist\LiquidFVD"
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          Copy-Item release\FVD.exe $dist
+          Copy-Item "$env:DEPS\glew\bin\Release\x64\glew32.dll" $dist
+          if (Test-Path "$env:DEPS\lib3ds\lib\lib3ds.dll") { Copy-Item "$env:DEPS\lib3ds\lib\lib3ds.dll" $dist }
+          windeployqt --release --no-translations --no-quick-import --no-system-d3d-compiler --no-angle "$dist\FVD.exe"
+          # Visual C++ runtime, so it starts on PCs without the redistributable installed
+          $redist = Get-ChildItem "$env:VCToolsRedistDir\x64" -Directory -Filter "Microsoft.VC*.CRT" | Select-Object -First 1
+          if ($redist) { Copy-Item "$($redist.FullName)\*.dll" $dist }
+          Copy-Item readme.txt, LICENSE $dist
+          Get-ChildItem $dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiquidFVD-windows
+          path: dist
+
+      - name: Publish release (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          Compress-Archive dist\LiquidFVD "LiquidFVD-${{ github.ref_name }}-windows.zip"
+          gh release create "${{ github.ref_name }}" "LiquidFVD-${{ github.ref_name }}-windows.zip" --title "LiquidFVD ${{ github.ref_name }}" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

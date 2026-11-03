@@ -1,3 +1,40 @@
+# LiquidFVD
+
+FVD++ (open FVD) by Stephan "Lenny" Alt, extended by Vivent Group.
+
+## Download (Windows)
+
+Every push to `master` is built automatically: open the **Actions** tab, pick the latest
+green "Windows build" run and download **LiquidFVD-windows** at the bottom. Unzip it and
+start `FVD.exe` - no installation needed. Tagged versions (`v*`) also appear under **Releases**.
+
+Existing `.fvd` projects open unchanged, and files saved here still open in the original FVD++.
+
+## What's new compared to FVD++ 0.79
+
+- **Autosave** - 4 rotating backups (interval and count in Options) in `<project>/Backups/`;
+  a backup right after opening; unsaved work goes to `Documents/FVD++/Autosave`.
+- **Project folders** - New / Save As create `MyCoaster/MyCoaster.fvd`.
+- **Dark mode** - Edit > Dark Mode (Ctrl+Shift+D), graphs included.
+- **Graph handles** - drag the end of any transition: up/down = value, left/right = length,
+  snaps to a grid, **Shift** = free. The neighbouring points stay put; dragging the last point
+  lengthens the whole section. One drag = one undo step.
+- **Music timeline** - WAV / MP3 / FLAC waveform below the graph on the same time axis,
+  "Song starts at" offset (or Ctrl+drag the waveform).
+- **Play-along** - Play (Ctrl+P) plays the song and rides the track in POV view in sync,
+  without going full screen. Stop: Ctrl+Shift+P.
+- **Bookmarks** - Ctrl+M or double-click the strip. Pink = pinned to the song, orange = pinned
+  to the ride. Shown in the graph and as balls above the track in 3D.
+  Music and bookmarks are saved as `<project>.timeline.json` next to the project.
+
+## Building
+
+Qt 5.15, GLEW, glm 0.9.5 and (optionally) lib3ds. See `.github/workflows/windows-build.yml`
+for a complete Windows recipe; library paths can be passed to qmake
+(`GLEW_DIR=... GLM_DIR=... LIB3DS_DIR=...`), `CONFIG+=no3ds` builds without the .3ds exporter.
+
+---
+
 ####################
 # open FVD++ v0.79 #
 ####################

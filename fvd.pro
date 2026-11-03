@@ -150,6 +150,39 @@ FORMS    += ui/transitionwidget.ui \
     INCLUDEPATH += "./renderer/"
     INCLUDEPATH += "./core/"
 
+    # library locations - override on the qmake command line, e.g.
+    #   qmake GLEW_DIR=C:/libs/glew GLM_DIR=C:/libs/glm LIB3DS_DIR=C:/libs/lib3ds
+    # or build without the .3ds exporter:  qmake CONFIG+=no3ds
+    isEmpty(GLEW_DIR):   GLEW_DIR   = C:/Development/Libraries/glew-1.12.0
+    isEmpty(GLM_DIR):    GLM_DIR    = C:/Development/Libraries/glm
+    isEmpty(LIB3DS_DIR): LIB3DS_DIR = C:/Development/Libraries/lib3ds-20080909
+
+    INCLUDEPATH += $$GLEW_DIR/include
+    INCLUDEPATH += $$GLM_DIR
+
+    RC_FILE = winicon.rc
+
+    # sources are UTF-8 (symbols like the play button or the degree sign)
+    win32-msvc*: QMAKE_CXXFLAGS += /utf-8
+    win32-msvc*: DEFINES += _USE_MATH_DEFINES NOMINMAX
+
+    LIBS += -lOpenGL32
+    LIBS += -lGlU32
+    LIBS += $$GLEW_DIR/lib/Release/x64/glew32.lib
+
+    no3ds {
+        DEFINES += FVD_NO_LIB3DS
+    } else {
+        INCLUDEPATH += $$LIB3DS_DIR/src
+        LIBS += -L$$LIB3DS_DIR/lib -llib3ds
+    }
+}
+
+unix:!macx {
+    INCLUDEPATH += "./ui/"
+    INCLUDEPATH += "./renderer/"
+    INCLUDEPATH += "./core/"
+
 	INCLUDEPATH += "C:\Development\Libraries\glew-1.12.0\include" # path-to-glew/include
 	INCLUDEPATH += "C:\Development\Libraries\glm" #path-to-glm"
 	INCLUDEPATH += "C:\Development\Libraries\lib3ds-20080909\src" #path-to-lib3ds
@@ -174,7 +207,11 @@ unix:!macx {
 
     LIBS += -lX11
     LIBS += -L /usr/local/lib/
-    LIBS += -l3ds
+    no3ds {
+        DEFINES += FVD_NO_LIB3DS
+    } else {
+        LIBS += -l3ds
+    }
 }
 
 macx {

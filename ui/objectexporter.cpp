@@ -19,7 +19,10 @@
 #include "objectexporter.h"
 #include "ui_objectexporter.h"
 
+#ifndef FVD_NO_LIB3DS
 #include <lib3ds.h>
+#endif
+#include <QMessageBox>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -71,6 +74,12 @@ bool objectExporter::update()
 // TODO: Build own exporter class
 void objectExporter::on_buttonBox_accepted()
 {
+#ifdef FVD_NO_LIB3DS
+    QMessageBox::information(gloParent, "Export 3ds",
+                             "This build of FVD++ was made without lib3ds, so .3ds export is not available.\n"
+                             "NoLimits export (File > Export) works as usual.");
+    return;
+#else
     QString fileName = QFileDialog::getSaveFileName(gloParent, "Save 3ds Object", ".", "3D Object (*.3ds)", 0, 0);
 
     QList<trackHandler*> trackList = gloParent->getTrackList();
@@ -175,4 +184,5 @@ void objectExporter::on_buttonBox_accepted()
 
     delete indices;
     delete vertices;
+#endif
 }

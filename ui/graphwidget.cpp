@@ -39,6 +39,7 @@
 #include <QDateTime>
 #include <QVBoxLayout>
 #include <cmath>
+#include <cstdlib>
 
 extern MainWindow* gloParent;
 extern glViewWidget* glView;
