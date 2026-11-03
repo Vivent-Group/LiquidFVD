@@ -43,6 +43,24 @@ jobs:
           hdiutil create -volname LiquidFVD -srcfolder dist/LiquidFVD.app -ov -format UDZO dist/LiquidFVD.dmg
           ls -la dist
 
+      # Start the packaged app on the runner's desktop: fails the build if it crashes on launch,
+      # and puts a small screenshot into the log (base64) so the look can be checked without a Mac.
+      - name: Smoke test (launch + screenshot)
+        run: |
+          dist/LiquidFVD.app/Contents/MacOS/FVD > launch.log 2>&1 &
+          PID=$!
+          sleep 12
+          if ! kill -0 $PID 2>/dev/null; then
+            echo "::error::LiquidFVD exited during start"; cat launch.log; exit 1
+          fi
+          osascript -e 'tell application "System Events" to set frontmost of (first process whose unix id is '"$PID"') to true' || true
+          sleep 2
+          screencapture -x shot.png
+          kill $PID || true
+          sips -Z 1100 shot.png --out shot-small.png > /dev/null
+          echo "---- launch.log ----"; head -40 launch.log
+          echo "SCREENSHOT-BEGIN"; base64 -i shot-small.png; echo "SCREENSHOT-END"
+
       - uses: actions/upload-artifact@v4
         with:
           name: LiquidFVD-macOS
