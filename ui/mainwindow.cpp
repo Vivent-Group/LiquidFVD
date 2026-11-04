@@ -40,6 +40,7 @@
 #include "timelinestrip.h"
 #include "updater.h"
 #include <QSettings>
+#include <QSysInfo>
 #include <QFileInfo>
 #include <QDir>
 #include <QAction>
@@ -1041,13 +1042,15 @@ void MainWindow::quitForUpdate()
 void MainWindow::showAbout()
 {
     QMessageBox::about(this, tr("About LiquidFVD"),
-        tr("<h3>LiquidFVD %1</h3>"
+        tr("<h3>LiquidFVD %1</h3><p><small>%2</small></p>"
            "<p>Force Vector Design for roller coasters, based on FVD++ 0.79 by Stephan \"Lenny\" Alt, "
            "extended by Vivent Group.</p>"
            "<p>New: autosave backups, dark mode, graph handles, music timeline with play-along POV, "
            "bookmarks and automatic updates.</p>"
            "<p><a href=\"https://github.com/Vivent-Group/LiquidFVD\">github.com/Vivent-Group/LiquidFVD</a><br>"
-           "License: GNU GPL v3. Audio: miniaudio (public domain / MIT-0).</p>").arg(updater::currentVersion()));
+           "License: GNU GPL v3. Audio: miniaudio (public domain / MIT-0).</p>").arg(updater::currentVersion())
+           .arg(QSysInfo::buildCpuArchitecture() == "arm64" ? tr("Native for Apple Silicon (arm64)")
+                                                             : tr("Built for %1").arg(QSysInfo::buildCpuArchitecture())));
 }
 
 void MainWindow::setCueNow()
