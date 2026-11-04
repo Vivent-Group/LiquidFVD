@@ -8,8 +8,7 @@ svg{display:block}
 <defs>
   <!-- glass tile -->
   <radialGradient id="tile" cx="50%" cy="38%" r="75%">
-    <stop offset="0" stop-color="#1c1b22"/>
-    <stop offset="0.55" stop-color="#09090c"/>
+    <stop offset="0" stop-color="#000000"/>
     <stop offset="1" stop-color="#000000"/>
   </radialGradient>
   <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
@@ -18,8 +17,8 @@ svg{display:block}
     <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
   </linearGradient>
   <linearGradient id="rimTile" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
-    <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.06"/>
+    <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+    <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.03"/>
     <stop offset="0.7" stop-color="#ff5fd2" stop-opacity="0.10"/>
     <stop offset="1" stop-color="#ffffff" stop-opacity="0.35"/>
   </linearGradient>
@@ -51,12 +50,25 @@ svg{display:block}
     <text x="518" y="602" text-anchor="middle" font-family="Pop" font-weight="700" font-size="300"
           letter-spacing="18" stroke="#fff" stroke-width="34" stroke-linejoin="round" fill="#fff">FVD</text>
   </g>
+  <g id="lettersHalo">
+    <text x="518" y="602" text-anchor="middle" font-family="Pop" font-weight="700" font-size="300"
+          letter-spacing="18" stroke-linejoin="round" fill="none" stroke="url(#irid)" stroke-width="30">FVD</text>
+  </g>
+  <g id="lettersBloom">
+    <text x="518" y="602" text-anchor="middle" font-family="Pop" font-weight="700" font-size="300"
+          letter-spacing="18" stroke-linejoin="round" fill="url(#irid)" stroke="url(#irid)" stroke-width="34">FVD</text>
+  </g>
+  <mask id="outside">
+    <rect x="0" y="0" width="1024" height="1024" fill="#fff"/>
+    <text x="518" y="602" text-anchor="middle" font-family="Pop" font-weight="700" font-size="300"
+          letter-spacing="18" stroke-linejoin="round" fill="#000" stroke="#000" stroke-width="22">FVD</text>
+  </mask>
   <mask id="inside"><use href="#letters"/></mask>
 
   <!-- inner rim: letters minus a shrunk, blurred copy -->
   <filter id="rim" x="-10%" y="-10%" width="120%" height="120%">
-    <feMorphology in="SourceAlpha" operator="erode" radius="12" result="er"/>
-    <feGaussianBlur in="er" stdDeviation="8" result="erb"/>
+    <feMorphology in="SourceAlpha" operator="erode" radius="9" result="er"/>
+    <feGaussianBlur in="er" stdDeviation="5" result="erb"/>
     <feComposite in="SourceGraphic" in2="erb" operator="out" result="ring"/>
     <feGaussianBlur in="ring" stdDeviation="1.2"/>
   </filter>
@@ -99,19 +111,17 @@ svg{display:block}
 </g>
 <g clip-path="url(#tileClip)">
   <!-- faint colour bloom behind the letters -->
-  <g opacity="0.5" filter="url(#glow)"><use href="#letters" fill="url(#irid)" stroke="url(#irid)" style="fill:url(#irid);stroke:url(#irid)"/></g>
+  <g mask="url(#outside)"><g opacity="0.32" filter="url(#glow)"><use href="#lettersHalo"/></g></g>
   <!-- glass sheen on the upper half of the tile -->
-  <path d="M100 100 H924 V430 C760 520 330 520 100 430 Z" fill="url(#sheen)"/>
+  <path d="M100 100 H924 V170 C760 205 330 205 100 170 Z" fill="url(#sheen)" opacity="0.35"/>
 </g>
 <rect x="101.5" y="101.5" width="821" height="821" rx="185" fill="none" stroke="url(#rimTile)" stroke-width="3"/>
 
 <!-- bubble letters -->
 <g>
   <!-- outer halo in film colours -->
-  <g opacity="0.45" filter="url(#soft)"><use href="#letters" style="fill:none;stroke:url(#irid);stroke-width:44"/></g>
+  <g mask="url(#outside)"><g opacity="0.55" filter="url(#soft)"><use href="#lettersHalo"/></g></g>
   <!-- see-through body -->
-  <g opacity="0.035"><use href="#letters"/></g>
-  <g opacity="0.09" mask="url(#inside)"><rect x="0" y="0" width="1024" height="1024" fill="url(#irid2)"/></g>
   <!-- soap-film rim (strong) -->
   <g filter="url(#rim)">
     <g mask="url(#inside)"><rect x="0" y="0" width="1024" height="1024" fill="url(#irid)"/></g>

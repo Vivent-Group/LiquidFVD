@@ -56,6 +56,26 @@ jobs:
           ditto -c -k --keepParent dist/LiquidFVD.app "dist/LiquidFVD-$V-macOS.zip"
           ls -la dist
 
+      # Every executable file in the app must run natively on Apple Silicon - nothing may need Rosetta
+      # (macOS warns about Intel-only components and Apple is phasing Rosetta out).
+      - name: Apple Silicon check
+        run: |
+          BAD=0; N=0
+          while IFS= read -r f; do
+            if file -b "$f" | grep -q "Mach-O"; then
+              N=$((N+1))
+              ARCHS=$(lipo -archs "$f" 2>/dev/null || echo "?")
+              case " $ARCHS " in
+                *" arm64 "*) ;;
+                *) echo "::error::not native for Apple Silicon ($ARCHS): ${f#dist/}"; BAD=1 ;;
+              esac
+            fi
+          done < <(find dist/LiquidFVD.app -type f)
+          echo "$N executables / libraries checked"
+          lipo -archs dist/LiquidFVD.app/Contents/MacOS/LiquidFVD
+          [ $BAD -eq 0 ] && echo "All native arm64 - no Rosetta needed"
+          exit $BAD
+
       # Start the packaged app on the runner's desktop: fails the build if it crashes on launch,
       # and puts a small screenshot into the log (base64) so the look can be checked without a Mac.
       - name: Smoke test (launch + screenshot)
