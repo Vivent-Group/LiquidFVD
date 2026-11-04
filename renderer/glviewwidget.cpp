@@ -17,6 +17,8 @@
 */
 
 #include "glviewwidget.h"
+#include <QApplication>
+#include <cstdio>
 
 #include "mainwindow.h"
 #include <QtGui/QMouseEvent>
@@ -1400,6 +1402,25 @@ void glViewWidget::moveCamera()
 	{
 		freeFlyPos += 0.3f*cameraBoost*(cameraMov.x - cameraMov.z)*freeFlyDir - 0.3f*cameraBoost*(cameraMov.y - cameraMov.w)*glm::normalize(glm::cross(freeFlyDir, glm::vec3(0.f, 1.f, 0.f)));
 		freeFlyPos += 0.01f*cameraJump * cameraBoost * glm::cross(freeFlyDir, glm::normalize(glm::cross(freeFlyDir, glm::vec3(0.f, 1.f, 0.f))));
+	}
+	// LIQUIDFVD_DEBUG_CAMERA=1: report where the camera is and where keys go (used by the macOS input test)
+	static const bool debugCamera = qgetenv("LIQUIDFVD_DEBUG_CAMERA") == "1";
+	if(debugCamera)
+	{
+		static QElapsedTimer lastReport;
+		if(!lastReport.isValid() || lastReport.elapsed() > 500)
+		{
+			lastReport.start();
+			QWidget* fw = QApplication::focusWidget();
+			QWidget* grabber = QWidget::keyboardGrabber();
+			QPoint c = mapToGlobal(QPoint(width()/2, height()/2));
+			printf("CAMERA pos %.2f %.2f %.2f move %d pov %d keys %.0f%.0f%.0f%.0f focus %s grabber %s active %d glcenter %d %d\n",
+				   freeFlyPos.x, freeFlyPos.y, freeFlyPos.z, (int)moveMode, (int)povMode,
+				   cameraMov.x, cameraMov.y, cameraMov.z, cameraMov.w,
+				   fw ? fw->metaObject()->className() : "none", grabber ? grabber->metaObject()->className() : "none",
+				   (int)(window() && window()->isActiveWindow()), c.x(), c.y());
+			fflush(stdout);
+		}
 	}
 #ifdef USE_OVR
 	Quatf bla;
