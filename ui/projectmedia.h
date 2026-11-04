@@ -111,8 +111,15 @@ private:
     ~projectMedia();
     void    startSoundAt(double songTime);
     bool    ensureEngine();
+    bool    decodePeaks(const QString& file, QVector<float>* peaks, double* duration);
+public:
+    // converts formats miniaudio can't read (M4A / AAC / ALAC / CAF ...) to WAV with a system tool:
+    // macOS afconvert, otherwise ffmpeg if installed. Cached. Empty string if not possible.
+    static QString convertToWav(const QString& file, QString* error);
+private:
 
-    QString mMusicFile;
+    QString mMusicFile;         // what the user picked (saved in the project)
+    QString mPlaybackFile;      // what is decoded / played (a converted copy for M4A, AAC, ...)
     double  mDuration;
     double  mMusicStart;
     QVector<float> mPeaks;

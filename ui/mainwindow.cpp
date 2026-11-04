@@ -977,7 +977,7 @@ void MainWindow::loadMusicDialog()
                                       currentFileName.isEmpty() ? QDir::homePath() : QFileInfo(currentFileName).absolutePath()).toString();
     glView->paintMode = false;
     QString file = QFileDialog::getOpenFileName(this, tr("Load Music"), startDir,
-                                                tr("Audio (*.wav *.mp3 *.flac);;All Files (*)"));
+                                                tr("Audio (*.wav *.mp3 *.flac *.m4a *.aac *.aif *.aiff *.caf *.ogg);;All Files (*)"));
     glView->paintMode = true;
     if(file.isEmpty()) return;
     settings.setValue("paths/lastMusicDir", QFileInfo(file).absolutePath());

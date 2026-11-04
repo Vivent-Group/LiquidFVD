@@ -22,6 +22,8 @@
 #include <QTextStream>
 #include "mainwindow.h"
 #include "lenassert.h"
+#include "projectmedia.h"
+#include <QThread>
 
 QApplication* application;
 
@@ -69,6 +71,24 @@ int main(int argc, char *argv[])
     application = new QApplication(argc, argv);
     QApplication::setApplicationName("LiquidFVD");
     QApplication::setApplicationVersion(LIQUIDFVD_VERSION);
+
+    // LiquidFVD --probe-audio <file>: decode + play one second, print the result (used by the build server)
+    if(argc == 3 && QString(argv[1]) == "--probe-audio") {
+        projectMedia* media = projectMedia::instance();
+        QString err;
+        if(!media->loadMusic(QString::fromLocal8Bit(argv[2]), &err)) {
+            printf("AUDIO FAIL %s\n", err.toLocal8Bit().constData());
+            return 1;
+        }
+        bool device = media->audioDeviceAvailable();
+        media->startPlayback(media->musicStart());
+        QThread::msleep(1200);
+        double t = media->playbackTrackTime();
+        media->stopPlayback();
+        printf("AUDIO OK duration %.2f s, waveform %d, output device %s, played %.2f s\n",
+               media->musicDuration(), media->peaks().size(), device ? "yes" : "no", t);
+        return t > 0.8 ? 0 : 2;
+    }
 #ifndef Q_OS_MAC
     qInstallMessageHandler(myMessageHandler);
 

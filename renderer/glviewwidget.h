@@ -92,6 +92,10 @@ protected:
     void keyPressEvent(QKeyEvent *event);
     void keyReleaseEvent(QKeyEvent *event);
     void wheelEvent(QWheelEvent *event);
+    bool eventFilter(QObject* obj, QEvent* event);
+public:
+    void leaveMoveMode();
+protected:
 
 
 signals:
@@ -137,6 +141,7 @@ private:
 
     int cameraJump;
     float cameraBoost;
+    float cameraRise;           // Q / E: down / up while flying
     QColor clearColor;
 
     glm::mat4x4 ProjectionModelMatrix;

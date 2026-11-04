@@ -26,6 +26,7 @@ class QToolButton;
 class QLabel;
 class QDoubleSpinBox;
 class waveView;
+class QCheckBox;
 
 /*
  * Lives directly below the graph plot and shares its x axis:
@@ -61,6 +62,7 @@ private:
     QToolButton*   mMusic;
     QDoubleSpinBox* mStart;
     QToolButton*   mMarker;
+    QCheckBox*     mKeepFormula;
     waveView*      mWave;
     friend class waveView;
 };

@@ -23,6 +23,9 @@
 #include "transitionwidget.h"
 #include "trackwidget.h"
 #include "mainwindow.h"
+#include "funcsnapshot.h"
+#include "section.h"
+#include "function.h"
 
 extern MainWindow* gloParent;
 
@@ -76,6 +79,22 @@ undoAction::~undoAction()
     {
         delete info;
     }
+}
+
+// restores the functions of a section and selects the transition the action was recorded on
+static void applySnapshot(undoAction* a, const QByteArray& data)
+{
+    a->hTrack->trackWidgetItem->setSelection(a->sectionNumber);
+    section* sec = a->inTrack->lSections[a->sectionNumber];
+    funcsnapshot::restore(sec, data);
+    func* f = sec->latForce;
+    if(a->inFunction == funcRoll) f = sec->rollFunc;
+    else if(a->inFunction == funcNormal || a->inFunction == funcPitch) f = sec->normForce;
+    int k = a->subfuncNumber < f->funcList.size() ? a->subfuncNumber : f->funcList.size()-1;
+    a->inTrack->updateTrack(a->sectionNumber, 0);
+    a->hTrack->graphWidgetItem->changeSelection(f->funcList[k]);
+    a->hTrack->graphWidgetItem->transitionHandler->changeSubfunc(f->funcList[k]);
+    a->hTrack->graphWidgetItem->redrawGraphs();
 }
 
 void undoAction::doUndo()
@@ -221,6 +240,9 @@ void undoAction::doUndo()
         break;
     case appendSubFunction:
         hTrack->graphWidgetItem->transitionHandler->on_removeButton_released();
+        break;
+    case restoreSectionFunctions:
+        applySnapshot(this, funcsBefore);
         break;
     case removeSubFunction:
         if(subfuncNumber > 0)
@@ -610,6 +632,9 @@ void undoAction::doRedo()
         break;
     case removeSubFunction:
         hTrack->graphWidgetItem->transitionHandler->on_removeButton_released();
+        break;
+    case restoreSectionFunctions:
+        applySnapshot(this, funcsAfter);
         break;
     case changeSegmentLength:
         inTrack->lSections[sectionNumber]->rollFunc->setMaxArgument(toValue.toDouble());

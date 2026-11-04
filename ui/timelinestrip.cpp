@@ -25,6 +25,8 @@
 #include "theme.h"
 #include "qcustomplot.h"
 #include "glviewwidget.h"
+#include "curveeditor.h"
+#include <QCheckBox>
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -81,7 +83,7 @@ timelineStrip::timelineStrip(graphWidget* owner)
     mMusic->setPopupMode(QToolButton::InstantPopup);
     mMusic->setToolButtonStyle(Qt::ToolButtonTextOnly);
     QMenu* musicMenu = new QMenu(mMusic);
-    musicMenu->addAction(tr("Load music (WAV, MP3, FLAC)..."), this, SLOT(onLoadMusic()));
+    musicMenu->addAction(tr("Load music (WAV, MP3, FLAC, M4A)..."), this, SLOT(onLoadMusic()));
     musicMenu->addAction(tr("Remove music"), this, SLOT(onRemoveMusic()));
     mMusic->setMenu(musicMenu);
 
@@ -98,6 +100,16 @@ timelineStrip::timelineStrip(graphWidget* owner)
     mMarker->setToolTip(tr("Bookmark at the play head (Ctrl+M) - double-click the strip to place one anywhere"));
     mMarker->setAutoRaise(true);
 
+    mKeepFormula = new QCheckBox(tr("Keep formula"), this);
+    mKeepFormula->setChecked(curveEditor::keepFormula());
+    mKeepFormula->setToolTip(tr("Dragging a line in the graph:\n"
+                                "ON  - the transition keeps its type: a hill gets higher / lower, a ramp bends; its ends stay\n"
+                                "OFF - a new point appears where you grab and stays where you drop it\n"
+                                "Points can always be dragged; Shift = no snapping; right-click a point to remove it."));
+    connect(mKeepFormula, &QCheckBox::toggled, [](bool on){ curveEditor::setKeepFormula(on); });
+    connect(owner, &graphWidget::keepFormulaChanged, [this](){
+        mKeepFormula->blockSignals(true); mKeepFormula->setChecked(curveEditor::keepFormula()); mKeepFormula->blockSignals(false); });
+
     QLabel* hint = new QLabel(tr("Click: play head  ·  Double-click: bookmark  ·  Ctrl+drag: move song"), this);
     QFont f = hint->font();
     f.setPointSizeF(f.pointSizeF()*0.85);
@@ -112,6 +124,8 @@ timelineStrip::timelineStrip(graphWidget* owner)
     bar->addWidget(startLabel);
     bar->addWidget(mStart);
     bar->addWidget(mMarker);
+    bar->addSpacing(8);
+    bar->addWidget(mKeepFormula);
     bar->addStretch(1);
     bar->addWidget(hint);
     v->addLayout(bar);
@@ -282,7 +296,7 @@ void waveView::paintEvent(QPaintEvent*)
         p.drawLine(ex, 0, ex, h);
     } else {
         p.setPen(text);
-        p.drawText(QRect(plotArea.left(), 0, plotArea.width(), h), Qt::AlignCenter, tr("No music loaded - use ♪ to add a WAV, MP3 or FLAC file"));
+        p.drawText(QRect(plotArea.left(), 0, plotArea.width(), h), Qt::AlignCenter, tr("No music loaded - use ♪ to add a song (WAV, MP3, FLAC, M4A)"));
     }
 
     // bookmarks

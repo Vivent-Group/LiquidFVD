@@ -74,6 +74,16 @@ jobs:
           echo "---- launch.log ----"; head -40 launch.log
           echo "SCREENSHOT-BEGIN"; base64 -i shot-small.png; echo "SCREENSHOT-END"
 
+      # Music: an MP3 with ID3 tag + cover art, and an M4A/AAC (Apple Music format) made with afconvert
+      - name: Audio test (MP3, M4A)
+        run: |
+          APP=dist/LiquidFVD.app/Contents/MacOS/LiquidFVD
+          $APP --probe-audio tests/audio/beat-with-cover.mp3 2>/dev/null | tee mp3.log
+          grep -q "AUDIO OK" mp3.log || { echo "::error::MP3 could not be read"; exit 1; }
+          afconvert -f m4af -d aac tests/audio/beat-with-cover.mp3 "$RUNNER_TEMP/song.m4a"
+          $APP --probe-audio "$RUNNER_TEMP/song.m4a" 2>/dev/null | tee m4a.log
+          grep -q "AUDIO OK" m4a.log || { echo "::error::M4A could not be read"; exit 1; }
+
       # Drives the 3D view like a user (right click, hold W, hold D) with real macOS input events
       # and checks that the camera actually moves.
       - name: 3D navigation test

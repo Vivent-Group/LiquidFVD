@@ -30,6 +30,10 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QtDebug>
+#include <QProcess>
+#include <QStandardPaths>
+#include <QCryptographicHash>
+#include <QDateTime>
 #include <cmath>
 
 #include "miniaudio.h"
@@ -86,16 +90,13 @@ bool projectMedia::audioDeviceAvailable()
 //  Music
 // ---------------------------------------------------------------------------
 
-bool projectMedia::loadMusic(const QString& file, QString* error)
+bool projectMedia::decodePeaks(const QString& file, QVector<float>* peaksOut, double* duration)
 {
-    // 1) decode once to get the length and the waveform (mono, native sample rate)
+    // decode once to get the length and the waveform (mono, native sample rate)
     ma_decoder decoder;
     ma_decoder_config cfg = ma_decoder_config_init(ma_format_f32, 1, 0);
     QByteArray path = QFile::encodeName(file);
-    if(ma_decoder_init_file(path.constData(), &cfg, &decoder) != MA_SUCCESS) {
-        if(error) *error = QString("Could not read %1 (supported: WAV, MP3, FLAC)").arg(QFileInfo(file).fileName());
-        return false;
-    }
+    if(ma_decoder_init_file(path.constData(), &cfg, &decoder) != MA_SUCCESS) return false;
     ma_uint32 rate = decoder.outputSampleRate;
     if(rate == 0) rate = 44100;
     const ma_uint64 framesPerPeak = (ma_uint64)(rate / peaksPerSecond());
@@ -121,31 +122,94 @@ bool projectMedia::loadMusic(const QString& file, QString* error)
     }
     if(inBucket) peaks.append(curPeak);
     ma_decoder_uninit(&decoder);
-
-    if(total == 0) {
-        if(error) *error = QString("%1 contains no audio").arg(QFileInfo(file).fileName());
-        return false;
-    }
+    if(total == 0) return false;
 
     // normalize so quiet songs still show a readable waveform
     float maxPeak = 0.f;
     for(int i = 0; i < peaks.size(); ++i) maxPeak = peaks[i] > maxPeak ? peaks[i] : maxPeak;
     if(maxPeak > 0.f) for(int i = 0; i < peaks.size(); ++i) peaks[i] /= maxPeak;
+    *peaksOut = peaks;
+    *duration = total / (double)rate;
+    return true;
+}
 
-    // 2) prepare playback (streamed from disk)
+QString projectMedia::convertToWav(const QString& file, QString* error)
+{
+    QFileInfo fi(file);
+    QString dir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    if(dir.isEmpty()) dir = QDir::temp().filePath("LiquidFVD");
+    dir += "/converted-audio";
+    QDir().mkpath(dir);
+    QByteArray key = QCryptographicHash::hash((fi.absoluteFilePath() + "|" + QString::number(fi.size()) + "|"
+                                               + fi.lastModified().toString(Qt::ISODate)).toUtf8(), QCryptographicHash::Sha1).toHex();
+    QString out = QDir(dir).filePath(QString::fromLatin1(key) + ".wav");
+    if(QFileInfo(out).size() > 44) return out;
+
+    QStringList tried;
+#ifdef Q_OS_MAC
+    {
+        QProcess p;
+        p.start("/usr/bin/afconvert", QStringList() << "-f" << "WAVE" << "-d" << "LEI16" << fi.absoluteFilePath() << out);
+        if(p.waitForFinished(180000) && p.exitCode() == 0 && QFileInfo(out).size() > 44) return out;
+        tried << "afconvert: " + QString::fromLocal8Bit(p.readAllStandardError()).trimmed();
+        QFile::remove(out);
+    }
+#endif
+    QString ffmpeg = QStandardPaths::findExecutable("ffmpeg");
+#ifdef Q_OS_MAC
+    if(ffmpeg.isEmpty()) ffmpeg = QStandardPaths::findExecutable("ffmpeg", QStringList() << "/opt/homebrew/bin" << "/usr/local/bin");
+#endif
+    if(!ffmpeg.isEmpty()) {
+        QProcess p;
+        p.start(ffmpeg, QStringList() << "-y" << "-loglevel" << "error" << "-i" << fi.absoluteFilePath()
+                                      << "-vn" << "-c:a" << "pcm_s16le" << out);
+        if(p.waitForFinished(180000) && p.exitCode() == 0 && QFileInfo(out).size() > 44) return out;
+        tried << "ffmpeg: " + QString::fromLocal8Bit(p.readAllStandardError()).trimmed();
+        QFile::remove(out);
+    }
+    if(error) {
+#ifdef Q_OS_MAC
+        *error = QString("Could not read %1.").arg(fi.fileName());
+#else
+        *error = QString("Could not read %1 (WAV, MP3 and FLAC work everywhere; for M4A / AAC install ffmpeg).").arg(fi.fileName());
+#endif
+        if(!tried.isEmpty()) *error += "\n\n" + tried.join("\n");
+    }
+    return QString();
+}
+
+bool projectMedia::loadMusic(const QString& file, QString* error)
+{
+    QVector<float> peaks;
+    double duration = 0.;
+    QString playFile = file;
+    if(!decodePeaks(file, &peaks, &duration)) {
+        // not WAV / MP3 / FLAC: e.g. M4A from Apple Music - convert it with a system tool
+        QString err;
+        playFile = convertToWav(file, &err);
+        if(playFile.isEmpty() || !decodePeaks(playFile, &peaks, &duration)) {
+            if(error) *error = err.isEmpty() ? QString("Could not read %1").arg(QFileInfo(file).fileName()) : err;
+            return false;
+        }
+        qDebug().noquote() << "Music converted for playback:" << file << "->" << playFile;
+    }
+
+    // prepare playback (streamed from disk)
     stopPlayback();
     if(mBackend->soundOk) {
         ma_sound_uninit(&mBackend->sound);
         mBackend->soundOk = false;
     }
     if(ensureEngine()) {
+        QByteArray path = QFile::encodeName(playFile);
         mBackend->soundOk = ma_sound_init_from_file(&mBackend->engine, path.constData(),
                                                     MA_SOUND_FLAG_STREAM | MA_SOUND_FLAG_NO_SPATIALIZATION,
                                                     NULL, NULL, &mBackend->sound) == MA_SUCCESS;
     }
 
     mMusicFile = QFileInfo(file).absoluteFilePath();
-    mDuration = total / (double)rate;
+    mPlaybackFile = playFile;
+    mDuration = duration;
     mPeaks = peaks;
     emit musicChanged();
     emit bookmarksChanged();    // music bookmarks become visible
@@ -160,6 +224,7 @@ void projectMedia::clearMusic()
         mBackend->soundOk = false;
     }
     mMusicFile.clear();
+    mPlaybackFile.clear();
     mDuration = 0.;
     mPeaks.clear();
     emit musicChanged();
