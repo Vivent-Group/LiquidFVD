@@ -27,13 +27,18 @@ LiquidFVD has its own app identity, so it can be installed next to an old FVD++.
   a backup right after opening; unsaved work goes to `Documents/LiquidFVD/Autosave`.
 - **Project folders** - New / Save As create `MyCoaster/MyCoaster.fvd`.
 - **Dark mode** - Edit > Dark Mode (Ctrl+Shift+D), graphs included.
-- **Graph handles** - drag the end of any transition: up/down = value, left/right = length,
-  snaps to a grid, **Shift** = free. The neighbouring points stay put; dragging the last point
-  lengthens the whole section. One drag = one undo step.
-- **Music timeline** - WAV / MP3 / FLAC waveform below the graph on the same time axis,
-  "Song starts at" offset (or Ctrl+drag the waveform).
+- **Graph editing like dough** - grab a line anywhere and pull it. *Keep formula* on: the
+  transition keeps its type (a hill gets higher / lower, its top moves sideways; a ramp bends,
+  its ends stay). Off: a new point appears where you grab and stays where you drop it.
+  Points: up/down = value, left/right = timing (diamonds = end of a hill, sideways only).
+  Snaps to a grid, **Shift** = free. Right-click: add / remove a point. One drag = one undo step.
+- **Music timeline** - WAV / MP3 / FLAC / M4A waveform below the graph on the same time axis.
+- **Cue point** - the song position where the ride starts. With *Pre-roll* the song plays from
+  its beginning and the train waits for the cue. **Set cue** (Ctrl+K) while listening starts the
+  ride right then; fine-tune in 0.01 s steps or Ctrl+drag the waveform.
 - **Play-along** - Play (Ctrl+P) plays the song and rides the track in POV view in sync,
   without going full screen. Stop: Ctrl+Shift+P.
+- **3D flying** - right-click the 3D view, then W A S D / arrows, Q / E down / up, Shift faster, Esc to stop.
 - **Updates** - LiquidFVD finds new releases on GitHub and installs them by itself (macOS).
 - **Bookmarks** - Ctrl+M or double-click the strip. Pink = pinned to the song, orange = pinned
   to the ride. Shown in the graph and as balls above the track in 3D.

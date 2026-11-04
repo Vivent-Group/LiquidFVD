@@ -58,7 +58,7 @@ projectMedia* projectMedia::instance()
 }
 
 projectMedia::projectMedia()
-    : mDuration(0.), mMusicStart(0.), mCursor(0.),
+    : mDuration(0.), mMusicStart(0.), mPreRoll(true), mCursor(0.),
       mPlaying(false), mSoundRunning(false), mAnchorTrack(0.),
       mBackend(new musicBackend())
 {
@@ -237,6 +237,13 @@ void projectMedia::setMusicStart(double trackTime)
     mMusicStart = trackTime;
     emit musicChanged();
     emit bookmarksChanged();    // music bookmarks move along with the song
+}
+
+void projectMedia::setPreRoll(bool on)
+{
+    if(on == mPreRoll) return;
+    mPreRoll = on;
+    emit musicChanged();
 }
 
 float projectMedia::peakBetween(double songFrom, double songTo) const
@@ -419,6 +426,8 @@ bool projectMedia::save(const QString& projectFile, QString* error)
         music["absolute"] = mMusicFile;
     }
     music["start"] = mMusicStart;
+    music["cue"] = -mMusicStart;          // readable: song position at which the ride starts
+    music["preroll"] = mPreRoll;
     root["music"] = music;
 
     QJsonArray marks;
@@ -449,6 +458,7 @@ void projectMedia::reset()
 {
     clearMusic();
     mMusicStart = 0.;
+    mPreRoll = true;
     mCursor = 0.;
     mBookmarks.clear();
     emit musicChanged();
@@ -465,6 +475,7 @@ void projectMedia::load(const QString& projectFile)
 
     QJsonObject music = root["music"].toObject();
     mMusicStart = music["start"].toDouble(0.);
+    mPreRoll = music["preroll"].toBool(true);
     QString rel = music["file"].toString();
     QString abs = music["absolute"].toString();
     if(!rel.isEmpty() || !abs.isEmpty()) {

@@ -63,6 +63,8 @@ private:
     QDoubleSpinBox* mStart;
     QToolButton*   mMarker;
     QCheckBox*     mKeepFormula;
+    QToolButton*   mSetCue;
+    QCheckBox*     mPreRoll;
     waveView*      mWave;
     friend class waveView;
 };

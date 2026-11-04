@@ -87,13 +87,23 @@ timelineStrip::timelineStrip(graphWidget* owner)
     musicMenu->addAction(tr("Remove music"), this, SLOT(onRemoveMusic()));
     mMusic->setMenu(musicMenu);
 
-    QLabel* startLabel = new QLabel(tr("Song starts at"), this);
+    QLabel* startLabel = new QLabel(tr("Cue"), this);
+    startLabel->setToolTip(tr("Position in the song at which the ride starts"));
     mStart = new QDoubleSpinBox(this);
     mStart->setRange(-3600., 3600.);
     mStart->setDecimals(2);
-    mStart->setSingleStep(0.1);
+    mStart->setSingleStep(0.01);
     mStart->setSuffix(" s");
-    mStart->setToolTip(tr("Ride time at which the song begins (negative: song starts before the ride).\nTip: Ctrl+drag the waveform."));
+    mStart->setToolTip(tr("Cue: the ride starts at this position in the song.\n"
+                          "Fine-tune with the arrows (0.01 s) or Ctrl+drag the waveform.\n"
+                          "Negative: the ride starts before the song."));
+    mSetCue = new QToolButton(this);
+    mSetCue->setText(QString::fromUtf8("\u2691 ") + tr("Set cue"));
+    mSetCue->setAutoRaise(true);
+    mSetCue->setToolTip(tr("While the song plays: the ride starts right now (Ctrl+K).\n"
+                           "Stopped: the song position under the play head becomes the cue."));
+    mPreRoll = new QCheckBox(tr("Pre-roll"), this);
+    mPreRoll->setToolTip(tr("Play from the start: the song plays from its beginning and the train waits in the station until the cue."));
 
     mMarker = new QToolButton(this);
     mMarker->setText(tr("+ Bookmark"));
@@ -110,7 +120,7 @@ timelineStrip::timelineStrip(graphWidget* owner)
     connect(owner, &graphWidget::keepFormulaChanged, [this](){
         mKeepFormula->blockSignals(true); mKeepFormula->setChecked(curveEditor::keepFormula()); mKeepFormula->blockSignals(false); });
 
-    QLabel* hint = new QLabel(tr("Click: play head  ·  Double-click: bookmark  ·  Ctrl+drag: move song"), this);
+    QLabel* hint = new QLabel(tr("Click: play head  ·  Double-click: bookmark  ·  Ctrl+drag: move song / cue"), this);
     QFont f = hint->font();
     f.setPointSizeF(f.pointSizeF()*0.85);
     hint->setFont(f);
@@ -123,6 +133,8 @@ timelineStrip::timelineStrip(graphWidget* owner)
     bar->addWidget(mMusic);
     bar->addWidget(startLabel);
     bar->addWidget(mStart);
+    bar->addWidget(mSetCue);
+    bar->addWidget(mPreRoll);
     bar->addWidget(mMarker);
     bar->addSpacing(8);
     bar->addWidget(mKeepFormula);
@@ -136,6 +148,8 @@ timelineStrip::timelineStrip(graphWidget* owner)
     connect(mPlay, SIGNAL(clicked()), this, SLOT(onPlayClicked()));
     connect(mStop, SIGNAL(clicked()), this, SLOT(onStopClicked()));
     connect(mStart, SIGNAL(valueChanged(double)), this, SLOT(onStartChanged(double)));
+    connect(mSetCue, &QToolButton::clicked, [](){ gloParent->setCueNow(); });
+    connect(mPreRoll, &QCheckBox::toggled, [](bool on){ projectMedia::instance()->setPreRoll(on); });
     connect(mMarker, SIGNAL(clicked()), this, SLOT(onAddMarker()));
 
     projectMedia* media = projectMedia::instance();
@@ -165,7 +179,13 @@ double timelineStrip::playheadTime() const
 void timelineStrip::refresh()
 {
     double dur = trackDuration();
-    mTime->setText(QString("%1 / %2").arg(formatTime(playheadTime())).arg(formatTime(dur)));
+    projectMedia* media = projectMedia::instance();
+    double clock = media->isPlaying() ? media->playbackTrackTime() : 0.;
+    if(media->isPlaying() && clock < 0.) {
+        mTime->setText(tr("Cue in %1 s").arg(-clock, 0, 'f', 1));     // pre-roll countdown
+    } else {
+        mTime->setText(QString("%1 / %2").arg(formatTime(playheadTime())).arg(formatTime(dur)));
+    }
     mWave->update();
 }
 
@@ -182,9 +202,14 @@ void timelineStrip::refreshControls()
         mMusic->setToolTip(tr("Load a song to see it below the ride"));
     }
     mStart->blockSignals(true);
-    mStart->setValue(media->musicStart());
+    mStart->setValue(media->cue());
     mStart->blockSignals(false);
     mStart->setEnabled(media->hasMusic());
+    mSetCue->setEnabled(media->hasMusic());
+    mPreRoll->blockSignals(true);
+    mPreRoll->setChecked(media->preRoll());
+    mPreRoll->blockSignals(false);
+    mPreRoll->setEnabled(media->hasMusic());
     refresh();
 }
 
@@ -202,7 +227,7 @@ void timelineStrip::onAddMarker()     { gloParent->addBookmarkAtPlayhead(); }
 
 void timelineStrip::onStartChanged(double v)
 {
-    projectMedia::instance()->setMusicStart(v);
+    projectMedia::instance()->setCue(v);
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +312,25 @@ void waveView::paintEvent(QPaintEvent*)
             float peak = media->peakBetween(a, b);
             int amp = (int)(peak * (mid-3));
             p.drawLine(x, mid-amp, x, mid+amp);
+        }
+        // cue: where the ride starts in the song
+        {
+            int cx = pixelAtTime(0.);
+            QColor cueColor(40, 200, 110);
+            p.setPen(QPen(cueColor, 2));
+            p.drawLine(cx, 0, cx, h);
+            int ss = (int)std::floor(media->cue()*100. + 0.5);
+            QString label = QString::fromUtf8("\u2691 CUE %1:%2").arg(ss/6000).arg((ss%6000)/100., 5, 'f', 2, QChar('0'));
+            QFontMetrics cfm(font());
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+            int cw = cfm.horizontalAdvance(label);
+#else
+            int cw = cfm.width(label);
+#endif
+            QRect r(cx - cw - 10, h - cfm.height() - 3, cw + 8, cfm.height() + 2);
+            p.fillRect(r, cueColor);
+            p.setPen(Qt::white);
+            p.drawText(r, Qt::AlignCenter, label);
         }
         // song start / end
         p.setPen(QPen(wave.darker(dark ? 60 : 130), 1, Qt::DotLine));
@@ -416,6 +460,8 @@ void waveView::contextMenuEvent(QContextMenuEvent* e)
     QAction* trackMark = menu.addAction(tr("Add ride bookmark here"));
     menu.addSeparator();
     QAction* songHere = menu.addAction(tr("Let the song start here"));
+    QAction* cueHere = menu.addAction(tr("Cue: the ride starts at this song position"));
+    cueHere->setEnabled(media->hasMusic());
     songHere->setEnabled(media->hasMusic());
     menu.addSeparator();
     QAction* load = menu.addAction(tr("Load music..."));
@@ -424,5 +470,10 @@ void waveView::contextMenuEvent(QContextMenuEvent* e)
     if(chosen == musicMark) gloParent->addBookmarkAt(t, bookmark::Music);
     else if(chosen == trackMark) gloParent->addBookmarkAt(t, bookmark::Track);
     else if(chosen == songHere) media->setMusicStart(std::floor(t*100. + 0.5)/100.);
+    else if(chosen == cueHere) {
+        double song = media->songPositionAt(t);
+        if(song < 0.) song = 0.;
+        media->setCue(std::floor(song*100. + 0.5)/100.);
+    }
     else if(chosen == load) gloParent->loadMusicDialog();
 }

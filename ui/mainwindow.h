@@ -114,6 +114,7 @@ public:
     void togglePlayback();          // play from the play head, riding along in POV view
     void stopPlayback();            // stop, leave POV view, play head back to the start
     void seekPlayback(double trackTime);
+    void setCueNow();               // the ride starts at the current song position (while playing) / at the play head
     void loadMusicDialog();
     void addBookmarkAtPlayhead();
     void addBookmarkAt(double trackTime, bookmark::Kind kind);
