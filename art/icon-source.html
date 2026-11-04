@@ -1,0 +1,137 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face { font-family: Pop; src: url("https://fonts.gstatic.com/s/poppins/v21/pxiByp8kv8JHgFVrLCz7Z1xlFQ.woff2") format("woff2"), local("Poppins Bold"); font-weight: 700; }
+html,body{margin:0;background:transparent}
+svg{display:block}
+</style></head><body>
+<svg id="icon" width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <!-- glass tile -->
+  <radialGradient id="tile" cx="50%" cy="38%" r="75%">
+    <stop offset="0" stop-color="#1c1b22"/>
+    <stop offset="0.55" stop-color="#09090c"/>
+    <stop offset="1" stop-color="#000000"/>
+  </radialGradient>
+  <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+    <stop offset="0.45" stop-color="#ffffff" stop-opacity="0.04"/>
+    <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+  </linearGradient>
+  <linearGradient id="rimTile" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="0.55"/>
+    <stop offset="0.35" stop-color="#ffffff" stop-opacity="0.06"/>
+    <stop offset="0.7" stop-color="#ff5fd2" stop-opacity="0.10"/>
+    <stop offset="1" stop-color="#ffffff" stop-opacity="0.35"/>
+  </linearGradient>
+  <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="18"/>
+    <feOffset dy="16" result="b"/>
+    <feComponentTransfer><feFuncA type="linear" slope="0.55"/></feComponentTransfer>
+    <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+
+  <!-- soap-film colours -->
+  <linearGradient id="irid" gradientUnits="userSpaceOnUse" x1="190" y1="360" x2="850" y2="660">
+    <stop offset="0"    stop-color="#ff4fd8"/>
+    <stop offset="0.22" stop-color="#9b6bff"/>
+    <stop offset="0.42" stop-color="#3fd9ff"/>
+    <stop offset="0.6"  stop-color="#6dffc0"/>
+    <stop offset="0.78" stop-color="#ffe46b"/>
+    <stop offset="1"    stop-color="#ff4fd8"/>
+  </linearGradient>
+  <linearGradient id="irid2" gradientUnits="userSpaceOnUse" x1="850" y1="360" x2="190" y2="660">
+    <stop offset="0"    stop-color="#3fd9ff"/>
+    <stop offset="0.35" stop-color="#ff4fd8"/>
+    <stop offset="0.7"  stop-color="#ffe46b"/>
+    <stop offset="1"    stop-color="#9b6bff"/>
+  </linearGradient>
+
+  <!-- puffy letters -->
+  <g id="letters">
+    <text x="518" y="602" text-anchor="middle" font-family="Pop" font-weight="700" font-size="300"
+          letter-spacing="18" stroke="#fff" stroke-width="34" stroke-linejoin="round" fill="#fff">FVD</text>
+  </g>
+  <mask id="inside"><use href="#letters"/></mask>
+
+  <!-- inner rim: letters minus a shrunk, blurred copy -->
+  <filter id="rim" x="-10%" y="-10%" width="120%" height="120%">
+    <feMorphology in="SourceAlpha" operator="erode" radius="12" result="er"/>
+    <feGaussianBlur in="er" stdDeviation="8" result="erb"/>
+    <feComposite in="SourceGraphic" in2="erb" operator="out" result="ring"/>
+    <feGaussianBlur in="ring" stdDeviation="1.2"/>
+  </filter>
+  <!-- glossy bubble highlights from a light at the top left -->
+  <filter id="gloss" x="-10%" y="-10%" width="120%" height="120%">
+    <feGaussianBlur in="SourceAlpha" stdDeviation="16" result="bump"/>
+    <feSpecularLighting in="bump" surfaceScale="9" specularConstant="1.25" specularExponent="38" lighting-color="#ffffff" result="spec">
+      <fePointLight x="250" y="120" z="420"/>
+    </feSpecularLighting>
+    <feComposite in="spec" in2="SourceAlpha" operator="in" result="g"/>
+    <feColorMatrix in="g" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.34 0.33 0.33 0 0" result="w"/>
+    <feComponentTransfer in="w"><feFuncA type="gamma" amplitude="1.6" exponent="3.2" offset="0"/></feComponentTransfer>
+  </filter>
+  <filter id="edgeTL" x="-10%" y="-10%" width="120%" height="120%">
+    <feOffset in="SourceAlpha" dx="9" dy="12" result="o"/>
+    <feComposite in="SourceAlpha" in2="o" operator="out" result="band"/>
+    <feGaussianBlur in="band" stdDeviation="2.2" result="bb"/>
+    <feFlood flood-color="#ffffff" flood-opacity="0.95"/>
+    <feComposite in2="bb" operator="in" result="w"/>
+    <feComposite in="w" in2="SourceAlpha" operator="in"/>
+  </filter>
+  <filter id="edgeBR" x="-10%" y="-10%" width="120%" height="120%">
+    <feOffset in="SourceAlpha" dx="-7" dy="-9" result="o"/>
+    <feComposite in="SourceAlpha" in2="o" operator="out" result="band"/>
+    <feGaussianBlur in="band" stdDeviation="3" result="bb"/>
+    <feFlood flood-color="#7ff3ff" flood-opacity="0.9"/>
+    <feComposite in2="bb" operator="in" result="c"/>
+    <feComposite in="c" in2="SourceAlpha" operator="in"/>
+  </filter>
+  <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+    <feGaussianBlur stdDeviation="22"/>
+  </filter>
+  <filter id="soft"><feGaussianBlur stdDeviation="6"/></filter>
+  <clipPath id="tileClip"><rect x="100" y="100" width="824" height="824" rx="186"/></clipPath>
+</defs>
+
+<!-- tile -->
+<g filter="url(#dropShadow)">
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#tile)"/>
+</g>
+<g clip-path="url(#tileClip)">
+  <!-- faint colour bloom behind the letters -->
+  <g opacity="0.5" filter="url(#glow)"><use href="#letters" fill="url(#irid)" stroke="url(#irid)" style="fill:url(#irid);stroke:url(#irid)"/></g>
+  <!-- glass sheen on the upper half of the tile -->
+  <path d="M100 100 H924 V430 C760 520 330 520 100 430 Z" fill="url(#sheen)"/>
+</g>
+<rect x="101.5" y="101.5" width="821" height="821" rx="185" fill="none" stroke="url(#rimTile)" stroke-width="3"/>
+
+<!-- bubble letters -->
+<g>
+  <!-- outer halo in film colours -->
+  <g opacity="0.45" filter="url(#soft)"><use href="#letters" style="fill:none;stroke:url(#irid);stroke-width:44"/></g>
+  <!-- see-through body -->
+  <g opacity="0.035"><use href="#letters"/></g>
+  <g opacity="0.09" mask="url(#inside)"><rect x="0" y="0" width="1024" height="1024" fill="url(#irid2)"/></g>
+  <!-- soap-film rim (strong) -->
+  <g filter="url(#rim)">
+    <g mask="url(#inside)"><rect x="0" y="0" width="1024" height="1024" fill="url(#irid)"/></g>
+  </g>
+  <g filter="url(#rim)" opacity="0.5">
+    <g mask="url(#inside)"><rect x="0" y="0" width="1024" height="1024" fill="url(#irid)"/></g>
+  </g>
+  <!-- light from the top left: crisp white edge -->
+  <g filter="url(#edgeTL)"><use href="#letters"/></g>
+  <!-- reflected light bottom right -->
+  <g filter="url(#edgeBR)" opacity="0.8"><use href="#letters"/></g>
+  <!-- glints -->
+  <g mask="url(#inside)" filter="url(#soft)" opacity="0.9">
+    <ellipse cx="262" cy="414" rx="40" ry="11" fill="#fff" transform="rotate(-8 262 414)"/>
+    <ellipse cx="462" cy="410" rx="26" ry="9" fill="#fff" transform="rotate(-14 462 410)"/>
+    <ellipse cx="676" cy="412" rx="46" ry="11" fill="#fff" transform="rotate(-6 676 412)"/>
+  </g>
+  <circle cx="226" cy="432" r="6.5" fill="#fff"/>
+  <circle cx="640" cy="404" r="4.5" fill="#fff" opacity="0.9"/>
+  <circle cx="812" cy="560" r="4" fill="#fff" opacity="0.7"/>
+</g>
+</svg>
+</body></html>

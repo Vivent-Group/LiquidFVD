@@ -24,6 +24,7 @@
 #include "lenassert.h"
 #include "projectmedia.h"
 #include <QThread>
+#include <QIcon>
 
 QApplication* application;
 
@@ -71,6 +72,7 @@ int main(int argc, char *argv[])
     application = new QApplication(argc, argv);
     QApplication::setApplicationName("LiquidFVD");
     QApplication::setApplicationVersion(LIQUIDFVD_VERSION);
+    QApplication::setWindowIcon(QIcon(":/icon.png"));
 
     // LiquidFVD --probe-audio <file>: decode + play one second, print the result (used by the build server)
     if(argc == 3 && QString(argv[1]) == "--probe-audio") {
