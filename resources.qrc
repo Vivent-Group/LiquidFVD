@@ -1,6 +1,7 @@
 <RCC>
     <qresource prefix="/">
         <file>metal.png</file>
+        <file>icon.png</file>
         <file>background.png</file>
         <file>sky/negx.jpg</file>
         <file>sky/negy.jpg</file>

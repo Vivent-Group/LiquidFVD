@@ -17,6 +17,8 @@
 */
 
 #include "glviewwidget.h"
+#include <QApplication>
+#include <cstdio>
 
 #include "mainwindow.h"
 #include <QtGui/QMouseEvent>
@@ -72,6 +74,8 @@ glViewWidget::glViewWidget(QWidget *parent) : QGLWidget(parent) {
     initialized = 0;
     markerShader = NULL;
     markerVertexCount = 0;
+    cameraRise = 0.f;
+    qApp->installEventFilter(this);
 }
 
 glViewWidget::~glViewWidget()
@@ -926,16 +930,42 @@ void glViewWidget::mousePressEvent(QMouseEvent *event)
 		this->setFocus();
 		this->grabKeyboard();
 		hasChanged = true;
+		gloParent->showMessage(tr("Move mode: W A S D or arrow keys to fly, Q / E down / up, Shift faster, Alt slower, "
+								  "Space = POV ride - right-click or Esc to leave"), 0);
         //this->cursor().setPos(this->mapToGlobal(QPoint(this->width()/2.0, this->height()/2.0)));
 	}
 	else
 	{
-		setCursor(QCursor(Qt::ArrowCursor));
-		this->cursor().setPos(mousePos);
-		cameraMov = glm::vec4(0.f, 0.f, 0.f, 0.f);
-
-		this->releaseKeyboard();
+		moveMode = true;
+		leaveMoveMode();
 	}
+}
+
+void glViewWidget::leaveMoveMode()
+{
+	if(!moveMode) return;
+	moveMode = false;
+	setCursor(QCursor(Qt::ArrowCursor));
+	this->cursor().setPos(mousePos);
+	cameraMov = glm::vec4(0.f, 0.f, 0.f, 0.f);
+	cameraRise = 0.f;
+	cameraBoost = 1.f;
+	this->releaseKeyboard();
+	gloParent->showMessage(QString(), 1);
+}
+
+// Safety net: while flying, camera keys work even if the system delivers them to another widget
+bool glViewWidget::eventFilter(QObject* obj, QEvent* event)
+{
+	if(moveMode && obj != this && obj->isWidgetType()
+	   && (event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease))
+	{
+		QKeyEvent* ke = static_cast<QKeyEvent*>(event);
+		if(event->type() == QEvent::KeyPress) keyPressEvent(ke);
+		else keyReleaseEvent(ke);
+		return ke->isAccepted();
+	}
+	return QGLWidget::eventFilter(obj, event);
 }
 
 void glViewWidget::mouseMoveEvent(QMouseEvent *event)
@@ -960,13 +990,21 @@ void glViewWidget::keyPressEvent(QKeyEvent *event)
 	case Qt::Key_D:
 		cameraMov.w = 1.f;
 		break;
+	case Qt::Key_Up:    if(!povMode) cameraMov.x = 1.f; else event->ignore(); break;
+	case Qt::Key_Down:  if(!povMode) cameraMov.z = 1.f; else event->ignore(); break;
+	case Qt::Key_Left:  if(!povMode) cameraMov.y = 1.f; else event->ignore(); break;
+	case Qt::Key_Right: if(!povMode) cameraMov.w = 1.f; else event->ignore(); break;
+	case Qt::Key_E:     cameraRise = 1.f; break;
+	case Qt::Key_Q:     cameraRise = -1.f; break;
 	case Qt::Key_Shift:
-		cameraBoost = 2.0f;
+		cameraBoost = 3.0f;
 		break;
 	case Qt::Key_Control:
-		cameraBoost = 0.5f;
+	case Qt::Key_Alt:
+		cameraBoost = 0.3f;
 		break;
 	case Qt::Key_Escape:
+		leaveMoveMode();
 		break;
 	case Qt::Key_Space:
 		if(!gloParent->curTrack()) break;
@@ -1000,10 +1038,15 @@ void glViewWidget::keyReleaseEvent(QKeyEvent *event)
 	case Qt::Key_D:
 		cameraMov.w = 0.f;
 		break;
+	case Qt::Key_E:
+	case Qt::Key_Q:
+		cameraRise = 0.f;
+		break;
 	case Qt::Key_Shift:
 		cameraBoost = 1.0f;
 		break;
 	case Qt::Key_Control:
+	case Qt::Key_Alt:
 		cameraBoost = 1.0f;
 		break;
 	case Qt::Key_Escape:
@@ -1028,24 +1071,28 @@ void glViewWidget::keyReleaseEvent(QKeyEvent *event)
 		{
 			gloParent->curTrack()->povPos.x -= cameraBoost*0.1;
 		}
+		else cameraMov.y = 0.f;
 		break;
 	case Qt::Key_Right:
 		if(povMode)
 		{
 			gloParent->curTrack()->povPos.x += cameraBoost*0.1;
 		}
+		else cameraMov.w = 0.f;
 		break;
 	case Qt::Key_Down:
 		if(povMode)
 		{
 			gloParent->curTrack()->povPos.y -= cameraBoost*0.1;
 		}
+		else cameraMov.z = 0.f;
 		break;
 	case Qt::Key_Up:
 		if(povMode)
 		{
 			gloParent->curTrack()->povPos.y += cameraBoost*0.1;
 		}
+		else cameraMov.x = 0.f;
 		break;
 	default:
 		event->ignore();
@@ -1398,8 +1445,33 @@ void glViewWidget::moveCamera()
 
 	if(!povMode)
 	{
-		freeFlyPos += 0.3f*cameraBoost*(cameraMov.x - cameraMov.z)*freeFlyDir - 0.3f*cameraBoost*(cameraMov.y - cameraMov.w)*glm::normalize(glm::cross(freeFlyDir, glm::vec3(0.f, 1.f, 0.f)));
-		freeFlyPos += 0.01f*cameraJump * cameraBoost * glm::cross(freeFlyDir, glm::normalize(glm::cross(freeFlyDir, glm::vec3(0.f, 1.f, 0.f))));
+		// speed in m/s, independent of the frame rate (was 0.3 m per frame - crawling on slow renderers)
+		float dt = renderTime;
+		if(dt < 0.f || dt > 0.1f) dt = 0.1f;
+		const float speed = 25.f*cameraBoost*dt;
+		glm::vec3 right = glm::normalize(glm::cross(freeFlyDir, glm::vec3(0.f, 1.f, 0.f)));
+		freeFlyPos += speed*(cameraMov.x - cameraMov.z)*freeFlyDir - speed*(cameraMov.y - cameraMov.w)*right;
+		freeFlyPos += speed*cameraRise*glm::vec3(0.f, 1.f, 0.f);
+		freeFlyPos += 0.01f*cameraJump * cameraBoost * glm::cross(freeFlyDir, right);
+	}
+	// LIQUIDFVD_DEBUG_CAMERA=1: report where the camera is and where keys go (used by the macOS input test)
+	static const bool debugCamera = qgetenv("LIQUIDFVD_DEBUG_CAMERA") == "1";
+	if(debugCamera)
+	{
+		static QElapsedTimer lastReport;
+		if(!lastReport.isValid() || lastReport.elapsed() > 500)
+		{
+			lastReport.start();
+			QWidget* fw = QApplication::focusWidget();
+			QWidget* grabber = QWidget::keyboardGrabber();
+			QPoint c = mapToGlobal(QPoint(width()/2, height()/2));
+			printf("CAMERA pos %.2f %.2f %.2f move %d pov %d keys %.0f%.0f%.0f%.0f focus %s grabber %s active %d glcenter %d %d\n",
+				   freeFlyPos.x, freeFlyPos.y, freeFlyPos.z, (int)moveMode, (int)povMode,
+				   cameraMov.x, cameraMov.y, cameraMov.z, cameraMov.w,
+				   fw ? fw->metaObject()->className() : "none", grabber ? grabber->metaObject()->className() : "none",
+				   (int)(window() && window()->isActiveWindow()), c.x(), c.y());
+			fflush(stdout);
+		}
 	}
 #ifdef USE_OVR
 	Quatf bla;

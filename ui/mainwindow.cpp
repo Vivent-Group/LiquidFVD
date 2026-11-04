@@ -44,6 +44,7 @@
 #include <QDir>
 #include <QAction>
 #include <QMenu>
+#include <cmath>
 
 MainWindow* gloParent;
 glViewWidget* glView;
@@ -168,6 +169,10 @@ MainWindow::MainWindow(QWidget *parent) :
     a->setShortcutContext(Qt::ApplicationShortcut);
     connect(a, &QAction::triggered, this, &MainWindow::stopPlayback);
     timelineMenu->addSeparator();
+    a = timelineMenu->addAction(tr("Set Cue - the Ride Starts Here"));
+    a->setShortcut(QKeySequence(tr("Ctrl+K")));
+    a->setShortcutContext(Qt::ApplicationShortcut);
+    connect(a, &QAction::triggered, this, &MainWindow::setCueNow);
     a = timelineMenu->addAction(tr("Add Bookmark at Play Head"));
     a->setShortcut(QKeySequence(tr("Ctrl+M")));
     a->setShortcutContext(Qt::ApplicationShortcut);
@@ -921,12 +926,17 @@ void MainWindow::togglePlayback()
     double start = playheadTime();
     if(start*F_HZ >= n - 10 || start < 0.) start = 0.;   // at the end: start over
 
-    glView->povPos = (int)(start * F_HZ);
+    // pre-roll: from the start of the ride, the song plays from its beginning and the train
+    // waits in the station until the cue
+    double clock = start;
+    if(start < 0.05 && media->hasMusic() && media->preRoll() && media->cue() > 0.) clock = -media->cue();
+
+    glView->povPos = (int)((clock > 0. ? clock : 0.) * F_HZ);
     glView->povNode = t->getPoint(glView->povPos);
     glView->povMode = true;
     mGraphWidget->setPovLineVisible(true);
 
-    media->startPlayback(start);
+    media->startPlayback(clock);
     if(media->hasMusic() && !media->audioDeviceAvailable()) {
         showMessage(tr("No audio output found - playing without sound"), 6000);
     }
@@ -977,7 +987,7 @@ void MainWindow::loadMusicDialog()
                                       currentFileName.isEmpty() ? QDir::homePath() : QFileInfo(currentFileName).absolutePath()).toString();
     glView->paintMode = false;
     QString file = QFileDialog::getOpenFileName(this, tr("Load Music"), startDir,
-                                                tr("Audio (*.wav *.mp3 *.flac);;All Files (*)"));
+                                                tr("Audio (*.wav *.mp3 *.flac *.m4a *.aac *.aif *.aiff *.caf *.ogg);;All Files (*)"));
     glView->paintMode = true;
     if(file.isEmpty()) return;
     settings.setValue("paths/lastMusicDir", QFileInfo(file).absolutePath());
@@ -1038,4 +1048,27 @@ void MainWindow::showAbout()
            "bookmarks and automatic updates.</p>"
            "<p><a href=\"https://github.com/Vivent-Group/LiquidFVD\">github.com/Vivent-Group/LiquidFVD</a><br>"
            "License: GNU GPL v3. Audio: miniaudio (public domain / MIT-0).</p>").arg(updater::currentVersion()));
+}
+
+void MainWindow::setCueNow()
+{
+    projectMedia* media = projectMedia::instance();
+    if(!media->hasMusic()) {
+        showMessage(tr("Load a song first (Timeline > Load Music)"));
+        return;
+    }
+    double song;
+    if(media->isPlaying()) {
+        // live: the ride starts right now, at what you hear
+        song = media->songPositionAt(media->playbackTrackTime());
+    } else {
+        song = media->songPositionAt(playheadTime());
+    }
+    if(song < 0.) song = 0.;
+    if(song > media->musicDuration()) song = media->musicDuration();
+    song = std::floor(song*100. + 0.5)/100.;
+    media->setCue(song);
+    if(!media->isPlaying()) seekPlayback(0.);
+    int m = (int)(song/60.);
+    showMessage(tr("Cue set: the ride starts at %1:%2 in the song").arg(m).arg(song - m*60., 5, 'f', 2, QChar('0')));
 }

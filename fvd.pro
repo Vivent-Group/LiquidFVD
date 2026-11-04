@@ -90,7 +90,9 @@ SOURCES += main.cpp\
     ui/theme.cpp \
     ui/projectmedia.cpp \
     ui/timelinestrip.cpp \
-    ui/updater.cpp
+    ui/updater.cpp \
+    ui/curveeditor.cpp \
+    core/funcsnapshot.cpp
 
 HEADERS  += core/undohandler.h \
     core/undoaction.h \
@@ -140,6 +142,8 @@ HEADERS  += core/undohandler.h \
     ui/projectmedia.h \
     ui/timelinestrip.h \
     ui/updater.h \
+    ui/curveeditor.h \
+    core/funcsnapshot.h \
     thirdparty/miniaudio/miniaudio.h
 
 FORMS    += ui/transitionwidget.ui \

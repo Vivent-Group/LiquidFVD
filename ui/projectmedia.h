@@ -69,6 +69,14 @@ public:
     // track time (seconds from the start of the ride) at which the song begins
     double  musicStart() const { return mMusicStart; }
     void    setMusicStart(double trackTime);
+    // cue = position in the song at which the ride starts (= -musicStart)
+    double  cue() const { return -mMusicStart; }
+    void    setCue(double songTime) { setMusicStart(-songTime); }
+    // pre-roll: Play from the start of the ride plays the song from its beginning, the train waits for the cue
+    bool    preRoll() const { return mPreRoll; }
+    void    setPreRoll(bool on);
+    // song position right now (while playing) or at the given ride time
+    double  songPositionAt(double trackTime) const { return trackTime - mMusicStart; }
     // normalized peak level (0..1), peaksPerSecond() entries per second of song
     const QVector<float>& peaks() const { return mPeaks; }
     static double peaksPerSecond() { return 200.; }
@@ -111,10 +119,18 @@ private:
     ~projectMedia();
     void    startSoundAt(double songTime);
     bool    ensureEngine();
+    bool    decodePeaks(const QString& file, QVector<float>* peaks, double* duration);
+public:
+    // converts formats miniaudio can't read (M4A / AAC / ALAC / CAF ...) to WAV with a system tool:
+    // macOS afconvert, otherwise ffmpeg if installed. Cached. Empty string if not possible.
+    static QString convertToWav(const QString& file, QString* error);
+private:
 
-    QString mMusicFile;
+    QString mMusicFile;         // what the user picked (saved in the project)
+    QString mPlaybackFile;      // what is decoded / played (a converted copy for M4A, AAC, ...)
     double  mDuration;
     double  mMusicStart;
+    bool    mPreRoll;
     QVector<float> mPeaks;
     double  mCursor;
 

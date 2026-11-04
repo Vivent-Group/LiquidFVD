@@ -21,6 +21,7 @@
 
 #include "function.h"
 #include <QVariant>
+#include <QByteArray>
 
 #include <sstream>
 
@@ -66,7 +67,9 @@ enum eActionType
     changeFunctionStatus,
 
     newTrack,
-    deleteTrack
+    deleteTrack,
+
+    restoreSectionFunctions     // whole roll / normal / lateral functions of a section (graph drags)
 };
 
 class undoAction
@@ -87,6 +90,10 @@ public:
     QVariant toValue;
 
     std::stringstream* info;
+
+    // restoreSectionFunctions: functions of the section before / after the edit
+    QByteArray funcsBefore;
+    QByteArray funcsAfter;
 
     undoAction* nextAction;
 
